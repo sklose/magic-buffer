@@ -1,6 +1,9 @@
 use std::{
     error::Error,
     fmt::{Display, Formatter},
+    ops::{
+        Deref, DerefMut, Index, IndexMut, Range, RangeFrom, RangeFull, RangeTo, RangeToInclusive,
+    },
 };
 
 #[cfg(target_family = "windows")]
@@ -26,13 +29,143 @@ impl Error for BufferError {
     }
 }
 
+impl Deref for InfiniteBuffer {
+    type Target = [u8];
+
+    fn deref(&self) -> &Self::Target {
+        unsafe { self.as_slice(0, self.len()) }
+    }
+}
+
+impl DerefMut for InfiniteBuffer {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        unsafe { self.as_slice_mut(0, self.len()) }
+    }
+}
+
+impl Index<usize> for InfiniteBuffer {
+    type Output = u8;
+
+    fn index(&self, mut index: usize) -> &Self::Output {
+        index %= self.len();
+        unsafe { self.as_slice(index, 1).get_unchecked(0) }
+    }
+}
+
+impl IndexMut<usize> for InfiniteBuffer {
+    fn index_mut(&mut self, mut index: usize) -> &mut Self::Output {
+        index %= self.len();
+        unsafe { self.as_slice_mut(index, 1).get_unchecked_mut(0) }
+    }
+}
+
+impl Index<Range<usize>> for InfiniteBuffer {
+    type Output = [u8];
+
+    fn index(&self, index: Range<usize>) -> &Self::Output {
+        if index.start > index.end {
+            return &[];
+        }
+
+        let len = index.end - index.start;
+        if len > self.len() {
+            panic!("out of bounds")
+        }
+
+        let index = index.start % self.len();
+        unsafe { self.as_slice(index, len) }
+    }
+}
+
+impl IndexMut<Range<usize>> for InfiniteBuffer {
+    fn index_mut(&mut self, index: Range<usize>) -> &mut Self::Output {
+        if index.start > index.end {
+            return &mut [];
+        }
+
+        let len = index.end - index.start;
+        if len > self.len() {
+            panic!("out of bounds")
+        }
+
+        let index = index.start % self.len();
+        unsafe { self.as_slice_mut(index, len) }
+    }
+}
+
+impl Index<RangeTo<usize>> for InfiniteBuffer {
+    type Output = [u8];
+
+    fn index(&self, index: RangeTo<usize>) -> &Self::Output {
+        let start = index.end - self.len();
+        let index = start % self.len();
+        unsafe { self.as_slice(index, self.len()) }
+    }
+}
+
+impl IndexMut<RangeTo<usize>> for InfiniteBuffer {
+    fn index_mut(&mut self, index: RangeTo<usize>) -> &mut Self::Output {
+        let start = index.end - self.len();
+        let index = start % self.len();
+        unsafe { self.as_slice_mut(index, self.len()) }
+    }
+}
+
+impl Index<RangeFrom<usize>> for InfiniteBuffer {
+    type Output = [u8];
+
+    fn index(&self, index: RangeFrom<usize>) -> &Self::Output {
+        let index = index.start % self.len();
+        unsafe { self.as_slice(index, self.len()) }
+    }
+}
+
+impl IndexMut<RangeFrom<usize>> for InfiniteBuffer {
+    fn index_mut(&mut self, index: RangeFrom<usize>) -> &mut Self::Output {
+        let index = index.start % self.len();
+        unsafe { self.as_slice_mut(index, self.len()) }
+    }
+}
+
+impl Index<RangeToInclusive<usize>> for InfiniteBuffer {
+    type Output = [u8];
+
+    fn index(&self, index: RangeToInclusive<usize>) -> &Self::Output {
+        let start = index.end - self.len() + 1;
+        let index = start % self.len();
+        unsafe { self.as_slice(index, self.len()) }
+    }
+}
+
+impl IndexMut<RangeToInclusive<usize>> for InfiniteBuffer {
+    fn index_mut(&mut self, index: RangeToInclusive<usize>) -> &mut Self::Output {
+        let start = index.end - self.len() + 1;
+        let index = start % self.len();
+        unsafe { self.as_slice_mut(index, self.len()) }
+    }
+}
+
+impl Index<RangeFull> for InfiniteBuffer {
+    type Output = [u8];
+
+    fn index(&self, _: RangeFull) -> &Self::Output {
+        unsafe { self.as_slice(0, self.len()) }
+    }
+}
+
+impl IndexMut<RangeFull> for InfiniteBuffer {
+    fn index_mut(&mut self, _: RangeFull) -> &mut Self::Output {
+        unsafe { self.as_slice_mut(0, self.len()) }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     const VALID_BUF_LEN: usize = 1 << 16;
     const INVALID_BUF_LEN_ALIGN: usize = 1 << 8;
-    const INVALID_BUF_LEN_POW2: usize = 1 << 16 + 5;
+    const INVALID_BUF_LEN_POW2: usize = 1 << (16 + 5);
 
     #[test]
     fn allocates_buffer() {

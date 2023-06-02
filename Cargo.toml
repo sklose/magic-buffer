@@ -1,5 +1,5 @@
 [package]
-name = "agrona"
+name = "vodoo-buffers"
 version = "0.1.0"
 edition = "2021"
 
@@ -12,3 +12,6 @@ features = [
     "Win32_System_Memory",
     "Win32_Security"
 ]
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"

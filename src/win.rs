@@ -1,14 +1,10 @@
 use crate::BufferError;
 
 use std::mem::MaybeUninit;
-use std::ops::{
-    Deref, DerefMut, Index, IndexMut, Range, RangeFrom, RangeFull, RangeTo, RangeToInclusive,
-};
+
 use std::ptr::{self, slice_from_raw_parts, slice_from_raw_parts_mut};
 use windows_sys::core::PWSTR;
-use windows_sys::Win32::Foundation::{
-    CloseHandle, GetLastError, FALSE, HANDLE, INVALID_HANDLE_VALUE,
-};
+use windows_sys::Win32::Foundation::{CloseHandle, GetLastError, FALSE, INVALID_HANDLE_VALUE};
 use windows_sys::Win32::System::Diagnostics::Debug::{
     FormatMessageW, FORMAT_MESSAGE_ALLOCATE_BUFFER, FORMAT_MESSAGE_FROM_SYSTEM,
     FORMAT_MESSAGE_IGNORE_INSERTS,
@@ -23,7 +19,6 @@ use windows_sys::Win32::System::SystemInformation::SYSTEM_INFO;
 
 #[derive(Debug)]
 pub struct InfiniteBuffer {
-    handle: HANDLE,
     addr: *mut u8,
     len: usize,
 }
@@ -59,7 +54,7 @@ impl InfiniteBuffer {
     pub fn new(len: usize) -> Result<Self, BufferError> {
         if !len.is_power_of_two() {
             return Err(BufferError {
-                msg: format!("len must be power of two"),
+                msg: "len must be power of two".to_string(),
             });
         }
 
@@ -172,9 +167,22 @@ impl InfiniteBuffer {
 
         Ok(Self {
             addr: view1 as *mut _,
-            handle,
             len,
         })
+    }
+
+    pub fn len(&self) -> usize {
+        self.len
+    }
+
+    #[inline(always)]
+    pub(crate) unsafe fn as_slice(&self, offset: usize, len: usize) -> &[u8] {
+        &*(slice_from_raw_parts(self.addr.add(offset), len))
+    }
+
+    #[inline(always)]
+    pub(crate) unsafe fn as_slice_mut(&mut self, offset: usize, len: usize) -> &mut [u8] {
+        &mut *(slice_from_raw_parts_mut(self.addr.add(offset), len))
     }
 }
 
@@ -183,137 +191,6 @@ impl Drop for InfiniteBuffer {
         unsafe {
             UnmapViewOfFile(self.addr.add(self.len) as _);
             UnmapViewOfFile(self.addr as _);
-            CloseHandle(self.handle);
         }
-    }
-}
-
-impl Deref for InfiniteBuffer {
-    type Target = [u8];
-
-    fn deref(&self) -> &Self::Target {
-        unsafe { &*(slice_from_raw_parts(self.addr, self.len)) }
-    }
-}
-
-impl DerefMut for InfiniteBuffer {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        unsafe { &mut *slice_from_raw_parts_mut(self.addr, self.len) }
-    }
-}
-
-impl Index<usize> for InfiniteBuffer {
-    type Output = u8;
-
-    fn index(&self, mut index: usize) -> &Self::Output {
-        index = index % self.len;
-        unsafe { &*(self.addr.add(index)) }
-    }
-}
-
-impl IndexMut<usize> for InfiniteBuffer {
-    fn index_mut(&mut self, mut index: usize) -> &mut Self::Output {
-        index = index % self.len;
-        unsafe { &mut *(self.addr.add(index)) }
-    }
-}
-
-impl Index<Range<usize>> for InfiniteBuffer {
-    type Output = [u8];
-
-    fn index(&self, index: Range<usize>) -> &Self::Output {
-        if index.start > index.end {
-            return &[];
-        }
-
-        let len = index.end - index.start;
-        if len > self.len {
-            panic!("out of bounds")
-        }
-
-        let index = index.start % self.len;
-        unsafe { &*(slice_from_raw_parts(self.addr.add(index), len)) }
-    }
-}
-
-impl IndexMut<Range<usize>> for InfiniteBuffer {
-    fn index_mut(&mut self, index: Range<usize>) -> &mut Self::Output {
-        if index.start > index.end {
-            return &mut [];
-        }
-
-        let len = index.end - index.start;
-        if len > self.len {
-            panic!("out of bounds")
-        }
-
-        let index = index.start % self.len;
-        unsafe { &mut *(slice_from_raw_parts_mut(self.addr.add(index), len)) }
-    }
-}
-
-impl Index<RangeTo<usize>> for InfiniteBuffer {
-    type Output = [u8];
-
-    fn index(&self, index: RangeTo<usize>) -> &Self::Output {
-        let start = index.end - self.len;
-        let index = start % self.len;
-        unsafe { &*(slice_from_raw_parts(self.addr.add(index), self.len)) }
-    }
-}
-
-impl IndexMut<RangeTo<usize>> for InfiniteBuffer {
-    fn index_mut(&mut self, index: RangeTo<usize>) -> &mut Self::Output {
-        let start = index.end - self.len;
-        let index = start % self.len;
-        unsafe { &mut *(slice_from_raw_parts_mut(self.addr.add(index), self.len)) }
-    }
-}
-
-impl Index<RangeFrom<usize>> for InfiniteBuffer {
-    type Output = [u8];
-
-    fn index(&self, index: RangeFrom<usize>) -> &Self::Output {
-        let index = index.start % self.len;
-        unsafe { &*(slice_from_raw_parts(self.addr.add(index), self.len)) }
-    }
-}
-
-impl IndexMut<RangeFrom<usize>> for InfiniteBuffer {
-    fn index_mut(&mut self, index: RangeFrom<usize>) -> &mut Self::Output {
-        let index = index.start % self.len;
-        unsafe { &mut *(slice_from_raw_parts_mut(self.addr.add(index), self.len)) }
-    }
-}
-
-impl Index<RangeToInclusive<usize>> for InfiniteBuffer {
-    type Output = [u8];
-
-    fn index(&self, index: RangeToInclusive<usize>) -> &Self::Output {
-        let start = index.end - self.len + 1;
-        let index = start % self.len;
-        unsafe { &*(slice_from_raw_parts(self.addr.add(index), self.len)) }
-    }
-}
-
-impl IndexMut<RangeToInclusive<usize>> for InfiniteBuffer {
-    fn index_mut(&mut self, index: RangeToInclusive<usize>) -> &mut Self::Output {
-        let start = index.end - self.len + 1;
-        let index = start % self.len;
-        unsafe { &mut *(slice_from_raw_parts_mut(self.addr.add(index), self.len)) }
-    }
-}
-
-impl Index<RangeFull> for InfiniteBuffer {
-    type Output = [u8];
-
-    fn index(&self, _: RangeFull) -> &Self::Output {
-        unsafe { &*(slice_from_raw_parts(self.addr, self.len)) }
-    }
-}
-
-impl IndexMut<RangeFull> for InfiniteBuffer {
-    fn index_mut(&mut self, _: RangeFull) -> &mut Self::Output {
-        unsafe { &mut *(slice_from_raw_parts_mut(self.addr, self.len)) }
     }
 }
