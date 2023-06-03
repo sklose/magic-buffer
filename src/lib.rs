@@ -12,6 +12,18 @@ mod win;
 #[cfg(target_family = "windows")]
 pub use win::*;
 
+#[cfg(target_os = "linux")]
+mod linux;
+
+#[cfg(target_os = "linux")]
+pub use linux::*;
+
+#[cfg(any(target_os = "macos", target_os = "ios"))]
+mod macos;
+
+#[cfg(any(target_os = "macos", target_os = "ios"))]
+pub use macos::*;
+
 #[derive(Debug)]
 pub struct BufferError {
     msg: String,
@@ -165,7 +177,7 @@ mod tests {
 
     const VALID_BUF_LEN: usize = 1 << 16;
     const INVALID_BUF_LEN_ALIGN: usize = 1 << 8;
-    const INVALID_BUF_LEN_POW2: usize = 1 << (16 + 5);
+    const INVALID_BUF_LEN_POW2: usize = (1 << 16) + 5;
 
     #[test]
     fn allocates_buffer() {

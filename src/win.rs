@@ -1,21 +1,26 @@
 use crate::BufferError;
 
-use std::mem::MaybeUninit;
+use std::{
+    mem::MaybeUninit,
+    ptr::{self, slice_from_raw_parts, slice_from_raw_parts_mut},
+};
 
-use std::ptr::{self, slice_from_raw_parts, slice_from_raw_parts_mut};
 use windows_sys::core::PWSTR;
-use windows_sys::Win32::Foundation::{CloseHandle, GetLastError, FALSE, INVALID_HANDLE_VALUE};
-use windows_sys::Win32::System::Diagnostics::Debug::{
-    FormatMessageW, FORMAT_MESSAGE_ALLOCATE_BUFFER, FORMAT_MESSAGE_FROM_SYSTEM,
-    FORMAT_MESSAGE_IGNORE_INSERTS,
+use windows_sys::Win32::{
+    Foundation::{CloseHandle, GetLastError, FALSE, INVALID_HANDLE_VALUE},
+    System::{
+        Diagnostics::Debug::{
+            FormatMessageW, FORMAT_MESSAGE_ALLOCATE_BUFFER, FORMAT_MESSAGE_FROM_SYSTEM,
+            FORMAT_MESSAGE_IGNORE_INSERTS,
+        },
+        Memory::{
+            CreateFileMappingA, LocalFree, MapViewOfFile3, UnmapViewOfFile, VirtualAlloc2,
+            VirtualFree, MEM_PRESERVE_PLACEHOLDER, MEM_RELEASE, MEM_REPLACE_PLACEHOLDER,
+            MEM_RESERVE, MEM_RESERVE_PLACEHOLDER, PAGE_NOACCESS, PAGE_READWRITE,
+        },
+        SystemInformation::{self, SYSTEM_INFO},
+    },
 };
-use windows_sys::Win32::System::Memory::{
-    CreateFileMappingA, LocalFree, MapViewOfFile3, UnmapViewOfFile, VirtualAlloc2, VirtualFree,
-    MEM_PRESERVE_PLACEHOLDER, MEM_RELEASE, MEM_REPLACE_PLACEHOLDER, MEM_RESERVE,
-    MEM_RESERVE_PLACEHOLDER, PAGE_NOACCESS, PAGE_READWRITE,
-};
-use windows_sys::Win32::System::SystemInformation;
-use windows_sys::Win32::System::SystemInformation::SYSTEM_INFO;
 
 #[derive(Debug)]
 pub struct InfiniteBuffer {
@@ -64,7 +69,7 @@ impl InfiniteBuffer {
             sys_info.assume_init()
         };
 
-        if (sys_info.dwAllocationGranularity as usize) % len != 0 {
+        if len % (sys_info.dwAllocationGranularity as usize) != 0 {
             return Err(BufferError {
                 msg: format!(
                     "len must be page aligned, {}",
