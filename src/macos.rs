@@ -93,7 +93,7 @@ pub(super) unsafe fn voodoo_buf_alloc(len: usize) -> Result<*mut u8, BufferError
     Ok(addr as _)
 }
 
-pub(super) unsafe fn voodoo_buf_free(add: *mut u8, len: usize) {
+pub(super) unsafe fn voodoo_buf_free(addr: *mut u8, len: usize) {
     let result = mach_vm_deallocate(mach_task_self(), addr as _, (len * 2) as u64);
     assert_eq!(result, KERN_SUCCESS, "de-allocation failed");
 }

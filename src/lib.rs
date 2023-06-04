@@ -1,10 +1,10 @@
-use std::ptr::{slice_from_raw_parts, slice_from_raw_parts_mut};
 use std::{
     error::Error,
     fmt::{Display, Formatter},
     ops::{
         Deref, DerefMut, Index, IndexMut, Range, RangeFrom, RangeFull, RangeTo, RangeToInclusive,
     },
+    ptr::{slice_from_raw_parts, slice_from_raw_parts_mut},
 };
 
 #[cfg(target_family = "windows")]
