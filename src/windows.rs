@@ -36,7 +36,7 @@ fn last_error_message() -> String {
             ptr::null(),
         );
 
-        if cb_buffer <= 0 {
+        if cb_buffer == 0 {
             return code.to_string();
         }
 

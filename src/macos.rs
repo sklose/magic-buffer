@@ -10,9 +10,9 @@ use mach2::vm_page_size::vm_page_size;
 use mach2::vm_prot::{vm_prot_t, VM_PROT_READ, VM_PROT_WRITE};
 use mach2::vm_statistics::{VM_FLAGS_ANYWHERE, VM_FLAGS_FIXED, VM_FLAGS_OVERWRITE};
 use mach2::vm_types::mach_vm_address_t;
-use std::{mem::MaybeUninit, ptr};
+use std::mem::MaybeUninit;
 
-pub(super) fn voodoo_buf_min_len() -> usize {
+pub(super) unsafe fn voodoo_buf_min_len() -> usize {
     vm_page_size
 }
 

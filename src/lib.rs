@@ -48,6 +48,7 @@ pub struct VoodooBuffer {
     len: usize,
 }
 
+#[allow(clippy::len_without_is_empty)]
 impl VoodooBuffer {
     pub fn new(len: usize) -> Result<Self, BufferError> {
         if len == 0 {
