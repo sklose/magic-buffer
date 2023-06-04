@@ -1,3 +1,4 @@
+use std::ptr::{slice_from_raw_parts, slice_from_raw_parts_mut};
 use std::{
     error::Error,
     fmt::{Display, Formatter},
@@ -10,19 +11,19 @@ use std::{
 mod windows;
 
 #[cfg(target_family = "windows")]
-pub use windows::*;
+use windows::*;
 
 #[cfg(target_os = "linux")]
 mod linux;
 
 #[cfg(target_os = "linux")]
-pub use linux::*;
+use linux::*;
 
 #[cfg(any(target_os = "macos", target_os = "ios"))]
 mod macos;
 
 #[cfg(any(target_os = "macos", target_os = "ios"))]
-pub use macos::*;
+use macos::*;
 
 #[derive(Debug)]
 pub struct BufferError {
@@ -38,6 +39,64 @@ impl Display for BufferError {
 impl Error for BufferError {
     fn description(&self) -> &str {
         &self.msg
+    }
+}
+
+#[derive(Debug)]
+pub struct VoodooBuffer {
+    addr: *mut u8,
+    len: usize,
+}
+
+impl VoodooBuffer {
+    pub fn new(len: usize) -> Result<Self, BufferError> {
+        if len == 0 {
+            return Err(BufferError {
+                msg: "len must be greater than 0".to_string(),
+            });
+        }
+
+        if !len.is_power_of_two() {
+            return Err(BufferError {
+                msg: "len must be power of two".to_string(),
+            });
+        }
+
+        let min_len = Self::min_len();
+        if len % min_len != 0 {
+            return Err(BufferError {
+                msg: format!("len must be page aligned, {}", min_len),
+            });
+        }
+
+        Ok(Self {
+            addr: unsafe { voodoo_buf_alloc(len) }?,
+            len,
+        })
+    }
+
+    pub fn min_len() -> usize {
+        unsafe { voodoo_buf_min_len() }
+    }
+
+    pub fn len(&self) -> usize {
+        self.len
+    }
+
+    #[inline(always)]
+    unsafe fn as_slice(&self, offset: usize, len: usize) -> &[u8] {
+        &*(slice_from_raw_parts(self.addr.add(offset), len))
+    }
+
+    #[inline(always)]
+    unsafe fn as_slice_mut(&mut self, offset: usize, len: usize) -> &mut [u8] {
+        &mut *(slice_from_raw_parts_mut(self.addr.add(offset), len))
+    }
+}
+
+impl Drop for VoodooBuffer {
+    fn drop(&mut self) {
+        unsafe { voodoo_buf_free(self.addr, self.len) }
     }
 }
 

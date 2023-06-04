@@ -1,9 +1,7 @@
 use crate::BufferError;
 
-use std::{
-    mem::MaybeUninit,
-    ptr::{self, slice_from_raw_parts, slice_from_raw_parts_mut},
-};
+use std::cmp::max;
+use std::{mem::MaybeUninit, ptr};
 
 use windows_sys::core::PWSTR;
 use windows_sys::Win32::{
@@ -21,12 +19,6 @@ use windows_sys::Win32::{
         SystemInformation::{self, SYSTEM_INFO},
     },
 };
-
-#[derive(Debug)]
-pub struct VoodooBuffer {
-    addr: *mut u8,
-    len: usize,
-}
 
 fn last_error_message() -> String {
     unsafe {
@@ -55,131 +47,95 @@ fn last_error_message() -> String {
     }
 }
 
-impl VoodooBuffer {
-    pub fn new(len: usize) -> Result<Self, BufferError> {
-        if !len.is_power_of_two() {
-            return Err(BufferError {
-                msg: "len must be power of two".to_string(),
-            });
-        }
+pub(super) unsafe fn voodoo_buf_min_len() -> usize {
+    let mut sys_info = MaybeUninit::<SYSTEM_INFO>::zeroed();
+    SystemInformation::GetSystemInfo(sys_info.as_mut_ptr());
+    let sys_info = sys_info.assume_init();
 
-        unsafe {
-            let mut sys_info = MaybeUninit::<SYSTEM_INFO>::zeroed();
-            SystemInformation::GetSystemInfo(sys_info.as_mut_ptr());
-            let sys_info = sys_info.assume_init();
-
-            if len % (sys_info.dwAllocationGranularity as usize) != 0 {
-                return Err(BufferError {
-                    msg: format!(
-                        "len must be page aligned, {}",
-                        sys_info.dwAllocationGranularity
-                    ),
-                });
-            }
-
-            let placeholder1 = VirtualAlloc2(
-                0,
-                ptr::null(),
-                2 * len,
-                MEM_RESERVE | MEM_RESERVE_PLACEHOLDER,
-                PAGE_NOACCESS,
-                ptr::null_mut(),
-                0,
-            );
-
-            if placeholder1.is_null() {
-                return Err(BufferError {
-                    msg: last_error_message(),
-                });
-            }
-
-            if VirtualFree(placeholder1, len, MEM_RELEASE | MEM_PRESERVE_PLACEHOLDER) == FALSE {
-                return Err(BufferError {
-                    msg: last_error_message(),
-                });
-            }
-
-            let handle = CreateFileMappingA(
-                INVALID_HANDLE_VALUE,
-                ptr::null(),
-                PAGE_READWRITE,
-                0,
-                len as u32,
-                ptr::null(),
-            );
-
-            if handle == 0 {
-                VirtualFree(placeholder1, 0, MEM_RELEASE);
-                return Err(BufferError {
-                    msg: last_error_message(),
-                });
-            }
-
-            let view1 = MapViewOfFile3(
-                handle,
-                0,
-                placeholder1,
-                0,
-                len,
-                MEM_REPLACE_PLACEHOLDER,
-                PAGE_READWRITE,
-                ptr::null_mut(),
-                0,
-            );
-
-            if view1 == 0 {
-                VirtualFree(placeholder1, 0, MEM_RELEASE);
-                return Err(BufferError {
-                    msg: last_error_message(),
-                });
-            }
-
-            let placeholder2 = unsafe { placeholder1.add(len) };
-            let view2 = MapViewOfFile3(
-                handle,
-                0,
-                placeholder2,
-                0,
-                len,
-                MEM_REPLACE_PLACEHOLDER,
-                PAGE_READWRITE,
-                ptr::null_mut(),
-                0,
-            );
-
-            if view2 == 0 {
-                panic!("failed")
-            }
-
-            CloseHandle(handle);
-
-            Ok(Self {
-                addr: view1 as *mut _,
-                len,
-            })
-        }
-    }
-
-    pub fn len(&self) -> usize {
-        self.len
-    }
-
-    #[inline(always)]
-    pub(crate) unsafe fn as_slice(&self, offset: usize, len: usize) -> &[u8] {
-        &*(slice_from_raw_parts(self.addr.add(offset), len))
-    }
-
-    #[inline(always)]
-    pub(crate) unsafe fn as_slice_mut(&mut self, offset: usize, len: usize) -> &mut [u8] {
-        &mut *(slice_from_raw_parts_mut(self.addr.add(offset), len))
-    }
+    max(sys_info.dwPageSize, sys_info.dwAllocationGranularity) as usize
 }
 
-impl Drop for VoodooBuffer {
-    fn drop(&mut self) {
-        unsafe {
-            UnmapViewOfFile(self.addr.add(self.len) as _);
-            UnmapViewOfFile(self.addr as _);
-        }
+pub(super) unsafe fn voodoo_buf_alloc(len: usize) -> Result<*mut u8, BufferError> {
+    let placeholder1 = VirtualAlloc2(
+        0,
+        ptr::null(),
+        2 * len,
+        MEM_RESERVE | MEM_RESERVE_PLACEHOLDER,
+        PAGE_NOACCESS,
+        ptr::null_mut(),
+        0,
+    );
+
+    if placeholder1.is_null() {
+        return Err(BufferError {
+            msg: last_error_message(),
+        });
     }
+
+    if VirtualFree(placeholder1, len, MEM_RELEASE | MEM_PRESERVE_PLACEHOLDER) == FALSE {
+        return Err(BufferError {
+            msg: last_error_message(),
+        });
+    }
+
+    let handle = CreateFileMappingA(
+        INVALID_HANDLE_VALUE,
+        ptr::null(),
+        PAGE_READWRITE,
+        0,
+        len as u32,
+        ptr::null(),
+    );
+
+    if handle == 0 {
+        VirtualFree(placeholder1, 0, MEM_RELEASE);
+        return Err(BufferError {
+            msg: last_error_message(),
+        });
+    }
+
+    let view1 = MapViewOfFile3(
+        handle,
+        0,
+        placeholder1,
+        0,
+        len,
+        MEM_REPLACE_PLACEHOLDER,
+        PAGE_READWRITE,
+        ptr::null_mut(),
+        0,
+    );
+
+    if view1 == 0 {
+        VirtualFree(placeholder1, 0, MEM_RELEASE);
+        return Err(BufferError {
+            msg: last_error_message(),
+        });
+    }
+
+    let placeholder2 = placeholder1.add(len);
+    let view2 = MapViewOfFile3(
+        handle,
+        0,
+        placeholder2,
+        0,
+        len,
+        MEM_REPLACE_PLACEHOLDER,
+        PAGE_READWRITE,
+        ptr::null_mut(),
+        0,
+    );
+
+    if view2 == 0 {
+        panic!("failed")
+    }
+
+    CloseHandle(handle);
+
+    Ok(view1 as *mut _)
+}
+
+pub(super) unsafe fn voodoo_buf_free(addr: *mut u8, len: usize) {
+    UnmapViewOfFile(addr.add(len) as _);
+    UnmapViewOfFile(addr as _);
 }
