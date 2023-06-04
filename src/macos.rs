@@ -16,12 +16,12 @@ use std::{
 };
 
 #[derive(Debug)]
-pub struct InfiniteBuffer {
+pub struct VoodooBuffer {
     addr: *mut u8,
     len: usize,
 }
 
-impl InfiniteBuffer {
+impl VoodooBuffer {
     pub fn new(len: usize) -> Result<Self, BufferError> {
         if !len.is_power_of_two() {
             return Err(BufferError {
@@ -133,7 +133,7 @@ impl InfiniteBuffer {
     }
 }
 
-impl Drop for InfiniteBuffer {
+impl Drop for VoodooBuffer {
     fn drop(&mut self) {
         unsafe {
             let result =

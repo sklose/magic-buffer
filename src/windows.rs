@@ -23,7 +23,7 @@ use windows_sys::Win32::{
 };
 
 #[derive(Debug)]
-pub struct InfiniteBuffer {
+pub struct VoodooBuffer {
     addr: *mut u8,
     len: usize,
 }
@@ -55,7 +55,7 @@ fn last_error_message() -> String {
     }
 }
 
-impl InfiniteBuffer {
+impl VoodooBuffer {
     pub fn new(len: usize) -> Result<Self, BufferError> {
         if !len.is_power_of_two() {
             return Err(BufferError {
@@ -63,23 +63,21 @@ impl InfiniteBuffer {
             });
         }
 
-        let sys_info = unsafe {
+        unsafe {
             let mut sys_info = MaybeUninit::<SYSTEM_INFO>::zeroed();
             SystemInformation::GetSystemInfo(sys_info.as_mut_ptr());
-            sys_info.assume_init()
-        };
+            let sys_info = sys_info.assume_init();
 
-        if len % (sys_info.dwAllocationGranularity as usize) != 0 {
-            return Err(BufferError {
-                msg: format!(
-                    "len must be page aligned, {}",
-                    sys_info.dwAllocationGranularity
-                ),
-            });
-        }
+            if len % (sys_info.dwAllocationGranularity as usize) != 0 {
+                return Err(BufferError {
+                    msg: format!(
+                        "len must be page aligned, {}",
+                        sys_info.dwAllocationGranularity
+                    ),
+                });
+            }
 
-        let placeholder1 = unsafe {
-            VirtualAlloc2(
+            let placeholder1 = VirtualAlloc2(
                 0,
                 ptr::null(),
                 2 * len,
@@ -87,45 +85,37 @@ impl InfiniteBuffer {
                 PAGE_NOACCESS,
                 ptr::null_mut(),
                 0,
-            )
-        };
+            );
 
-        if placeholder1.is_null() {
-            return Err(BufferError {
-                msg: last_error_message(),
-            });
-        }
+            if placeholder1.is_null() {
+                return Err(BufferError {
+                    msg: last_error_message(),
+                });
+            }
 
-        unsafe {
             if VirtualFree(placeholder1, len, MEM_RELEASE | MEM_PRESERVE_PLACEHOLDER) == FALSE {
                 return Err(BufferError {
                     msg: last_error_message(),
                 });
             }
-        };
 
-        let handle = unsafe {
-            CreateFileMappingA(
+            let handle = CreateFileMappingA(
                 INVALID_HANDLE_VALUE,
                 ptr::null(),
                 PAGE_READWRITE,
                 0,
                 len as u32,
                 ptr::null(),
-            )
-        };
+            );
 
-        if handle == 0 {
-            unsafe {
+            if handle == 0 {
                 VirtualFree(placeholder1, 0, MEM_RELEASE);
+                return Err(BufferError {
+                    msg: last_error_message(),
+                });
             }
-            return Err(BufferError {
-                msg: last_error_message(),
-            });
-        }
 
-        let view1 = unsafe {
-            MapViewOfFile3(
+            let view1 = MapViewOfFile3(
                 handle,
                 0,
                 placeholder1,
@@ -135,21 +125,17 @@ impl InfiniteBuffer {
                 PAGE_READWRITE,
                 ptr::null_mut(),
                 0,
-            )
-        };
+            );
 
-        if view1 == 0 {
-            unsafe {
+            if view1 == 0 {
                 VirtualFree(placeholder1, 0, MEM_RELEASE);
+                return Err(BufferError {
+                    msg: last_error_message(),
+                });
             }
-            return Err(BufferError {
-                msg: last_error_message(),
-            });
-        }
 
-        let placeholder2 = unsafe { placeholder1.add(len) };
-        let view2 = unsafe {
-            MapViewOfFile3(
+            let placeholder2 = unsafe { placeholder1.add(len) };
+            let view2 = MapViewOfFile3(
                 handle,
                 0,
                 placeholder2,
@@ -159,21 +145,19 @@ impl InfiniteBuffer {
                 PAGE_READWRITE,
                 ptr::null_mut(),
                 0,
-            )
-        };
+            );
 
-        if view2 == 0 {
-            panic!("failed")
-        }
+            if view2 == 0 {
+                panic!("failed")
+            }
 
-        unsafe {
             CloseHandle(handle);
-        }
 
-        Ok(Self {
-            addr: view1 as *mut _,
-            len,
-        })
+            Ok(Self {
+                addr: view1 as *mut _,
+                len,
+            })
+        }
     }
 
     pub fn len(&self) -> usize {
@@ -191,7 +175,7 @@ impl InfiniteBuffer {
     }
 }
 
-impl Drop for InfiniteBuffer {
+impl Drop for VoodooBuffer {
     fn drop(&mut self) {
         unsafe {
             UnmapViewOfFile(self.addr.add(self.len) as _);
