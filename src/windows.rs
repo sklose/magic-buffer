@@ -41,9 +41,10 @@ fn last_error_message() -> String {
         }
 
         let buffer = std::slice::from_raw_parts(lp_buffer, cb_buffer as usize - 1);
+        let str = String::from_utf16_lossy(buffer);
         LocalFree(lp_buffer as _);
 
-        String::from_utf16_lossy(buffer)
+        str
     }
 }
 

@@ -46,6 +46,7 @@ impl Error for BufferError {
 pub struct VoodooBuffer {
     addr: *mut u8,
     len: usize,
+    mask: usize,
 }
 
 #[allow(clippy::len_without_is_empty)]
@@ -72,6 +73,7 @@ impl VoodooBuffer {
 
         Ok(Self {
             addr: unsafe { voodoo_buf_alloc(len) }?,
+            mask: len - 1,
             len,
         })
     }
@@ -93,6 +95,11 @@ impl VoodooBuffer {
     unsafe fn as_slice_mut(&mut self, offset: usize, len: usize) -> &mut [u8] {
         &mut *(slice_from_raw_parts_mut(self.addr.add(offset), len))
     }
+
+    #[inline(always)]
+    fn fast_mod(&self, v: usize) -> usize {
+        v & self.mask
+    }
 }
 
 impl Drop for VoodooBuffer {
@@ -105,29 +112,27 @@ impl Deref for VoodooBuffer {
     type Target = [u8];
 
     fn deref(&self) -> &Self::Target {
-        unsafe { self.as_slice(0, self.len()) }
+        unsafe { self.as_slice(0, self.len) }
     }
 }
 
 impl DerefMut for VoodooBuffer {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        unsafe { self.as_slice_mut(0, self.len()) }
+        unsafe { self.as_slice_mut(0, self.len) }
     }
 }
 
 impl Index<usize> for VoodooBuffer {
     type Output = u8;
 
-    fn index(&self, mut index: usize) -> &Self::Output {
-        index %= self.len();
-        unsafe { self.as_slice(index, 1).get_unchecked(0) }
+    fn index(&self, index: usize) -> &Self::Output {
+        unsafe { &*self.addr.add(self.fast_mod(index)) }
     }
 }
 
 impl IndexMut<usize> for VoodooBuffer {
-    fn index_mut(&mut self, mut index: usize) -> &mut Self::Output {
-        index %= self.len();
-        unsafe { self.as_slice_mut(index, 1).get_unchecked_mut(0) }
+    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
+        unsafe { &mut *self.addr.add(self.fast_mod(index)) }
     }
 }
 
@@ -140,12 +145,11 @@ impl Index<Range<usize>> for VoodooBuffer {
         }
 
         let len = index.end - index.start;
-        if len > self.len() {
+        if len > self.len {
             panic!("out of bounds")
         }
 
-        let index = index.start % self.len();
-        unsafe { self.as_slice(index, len) }
+        unsafe { self.as_slice(self.fast_mod(index.start), len) }
     }
 }
 
@@ -156,12 +160,11 @@ impl IndexMut<Range<usize>> for VoodooBuffer {
         }
 
         let len = index.end - index.start;
-        if len > self.len() {
+        if len > self.len {
             panic!("out of bounds")
         }
 
-        let index = index.start % self.len();
-        unsafe { self.as_slice_mut(index, len) }
+        unsafe { self.as_slice_mut(self.fast_mod(index.start), len) }
     }
 }
 
@@ -169,17 +172,15 @@ impl Index<RangeTo<usize>> for VoodooBuffer {
     type Output = [u8];
 
     fn index(&self, index: RangeTo<usize>) -> &Self::Output {
-        let start = index.end - self.len();
-        let index = start % self.len();
-        unsafe { self.as_slice(index, self.len()) }
+        let start = index.end - self.len;
+        unsafe { self.as_slice(self.fast_mod(start), self.len) }
     }
 }
 
 impl IndexMut<RangeTo<usize>> for VoodooBuffer {
     fn index_mut(&mut self, index: RangeTo<usize>) -> &mut Self::Output {
-        let start = index.end - self.len();
-        let index = start % self.len();
-        unsafe { self.as_slice_mut(index, self.len()) }
+        let start = index.end - self.len;
+        unsafe { self.as_slice_mut(self.fast_mod(start), self.len) }
     }
 }
 
@@ -187,15 +188,13 @@ impl Index<RangeFrom<usize>> for VoodooBuffer {
     type Output = [u8];
 
     fn index(&self, index: RangeFrom<usize>) -> &Self::Output {
-        let index = index.start % self.len();
-        unsafe { self.as_slice(index, self.len()) }
+        unsafe { self.as_slice(self.fast_mod(index.start), self.len) }
     }
 }
 
 impl IndexMut<RangeFrom<usize>> for VoodooBuffer {
     fn index_mut(&mut self, index: RangeFrom<usize>) -> &mut Self::Output {
-        let index = index.start % self.len();
-        unsafe { self.as_slice_mut(index, self.len()) }
+        unsafe { self.as_slice_mut(self.fast_mod(index.start), self.len) }
     }
 }
 
@@ -203,17 +202,15 @@ impl Index<RangeToInclusive<usize>> for VoodooBuffer {
     type Output = [u8];
 
     fn index(&self, index: RangeToInclusive<usize>) -> &Self::Output {
-        let start = index.end - self.len() + 1;
-        let index = start % self.len();
-        unsafe { self.as_slice(index, self.len()) }
+        let start = index.end - self.len + 1;
+        unsafe { self.as_slice(self.fast_mod(start), self.len) }
     }
 }
 
 impl IndexMut<RangeToInclusive<usize>> for VoodooBuffer {
     fn index_mut(&mut self, index: RangeToInclusive<usize>) -> &mut Self::Output {
-        let start = index.end - self.len() + 1;
-        let index = start % self.len();
-        unsafe { self.as_slice_mut(index, self.len()) }
+        let start = index.end - self.len + 1;
+        unsafe { self.as_slice_mut(self.fast_mod(start), self.len) }
     }
 }
 
@@ -221,13 +218,13 @@ impl Index<RangeFull> for VoodooBuffer {
     type Output = [u8];
 
     fn index(&self, _: RangeFull) -> &Self::Output {
-        unsafe { self.as_slice(0, self.len()) }
+        unsafe { self.as_slice(0, self.len) }
     }
 }
 
 impl IndexMut<RangeFull> for VoodooBuffer {
     fn index_mut(&mut self, _: RangeFull) -> &mut Self::Output {
-        unsafe { self.as_slice_mut(0, self.len()) }
+        unsafe { self.as_slice_mut(0, self.len) }
     }
 }
 
