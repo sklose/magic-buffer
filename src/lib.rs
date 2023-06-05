@@ -49,8 +49,40 @@ pub struct VoodooBuffer {
     mask: usize,
 }
 
+/// [`VoodooBuffer`] provides a ring buffer implementation that
+/// can deref into a contiguous slice from any offset wrapping
+/// around the buffer.
+///
+/// This is made possible with virtual address mappings.
+/// The underlying buffer is mapped twice into virtual memory where
+/// the second mapping is adjacent to the first one. The logic
+/// for wrapping around the buffer is pushed down to the hardware.
+///
+/// # Examples
+/// ```
+/// # use voodoo_buffers::*;
+/// # fn main() -> Result<(), BufferError> {
+/// let len = VoodooBuffer::min_len();
+/// let buf = VoodooBuffer::new(len)?;
+/// let slice = &buf[len/2..];
+/// assert_eq!(len, slice.len());
+/// # Ok(())
+/// # }
+/// ```
 #[allow(clippy::len_without_is_empty)]
 impl VoodooBuffer {
+    /// Allocates a new [`VoodooBuffer`] of the specified `len`.
+    ///
+    /// `len` must be a power of two, and also must be a multiple
+    /// of the operating system's allocation granularity. This is
+    /// usually the page size - most commonly 4KiB. On Windows
+    /// the allocation granularity is 64KiB (see [here](https://devblogs.microsoft.com/oldnewthing/20031008-00/?p=42223)).
+    ///
+    /// # Errors
+    /// Will return an error if the allocation fails.
+    ///
+    /// # Panics
+    /// Will panic if it fails to cleanup in case of an error.
     pub fn new(len: usize) -> Result<Self, BufferError> {
         if len == 0 {
             return Err(BufferError {
@@ -78,10 +110,15 @@ impl VoodooBuffer {
         })
     }
 
+    /// Returns the minimum buffer len that can be allocated.
+    ///
+    /// This is usually the page size - most commonly 4KiB. On Windows
+    /// the allocation granularity is 64KiB (see [here](https://devblogs.microsoft.com/oldnewthing/20031008-00/?p=42223)).
     pub fn min_len() -> usize {
         unsafe { voodoo_buf_min_len() }
     }
 
+    /// Returns the length of this [`VoodooBuffer`].
     pub fn len(&self) -> usize {
         self.len
     }

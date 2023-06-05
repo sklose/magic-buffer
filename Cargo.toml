@@ -2,6 +2,9 @@
 name = "voodoo-buffers"
 version = "0.1.0"
 edition = "2021"
+license = "MIT"
+authors = ["Sebastian Klose <mail@sklose.com>"]
+repository = "https://github.com/sklose/voodoo-buffer"
 
 [target.'cfg(windows)'.dependencies.windows-sys]
 version = "0.48"
