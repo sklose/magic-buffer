@@ -6,6 +6,9 @@ license = "MIT"
 authors = ["Sebastian Klose <mail@sklose.com>"]
 repository = "https://github.com/sklose/voodoo-buffer"
 
+[dependencies]
+thiserror = "1"
+
 [target.'cfg(windows)'.dependencies.windows-sys]
 version = "0.48"
 features = [

@@ -1,11 +1,10 @@
 use std::{
-    error::Error,
-    fmt::{Display, Formatter},
     ops::{
         Deref, DerefMut, Index, IndexMut, Range, RangeFrom, RangeFull, RangeTo, RangeToInclusive,
     },
     ptr::{slice_from_raw_parts, slice_from_raw_parts_mut},
 };
+use thiserror::Error;
 
 #[cfg(target_family = "windows")]
 mod windows;
@@ -25,21 +24,12 @@ mod macos;
 #[cfg(any(target_os = "macos", target_os = "ios"))]
 use macos::*;
 
-#[derive(Debug)]
-pub struct BufferError {
-    msg: String,
-}
-
-impl Display for BufferError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.write_str(&self.msg)
-    }
-}
-
-impl Error for BufferError {
-    fn description(&self) -> &str {
-        &self.msg
-    }
+#[derive(Debug, Error)]
+pub enum VoodooBufferError {
+    #[error("out of memory")]
+    OOM,
+    #[error("invalid buffer len, {msg}")]
+    InvalidLen { msg: String },
 }
 
 #[derive(Debug)]
@@ -61,7 +51,7 @@ pub struct VoodooBuffer {
 /// # Examples
 /// ```
 /// # use voodoo_buffers::*;
-/// # fn main() -> Result<(), BufferError> {
+/// # fn main() -> Result<(), VoodooBufferError> {
 /// let len = VoodooBuffer::min_len();
 /// let buf = VoodooBuffer::new(len)?;
 /// let slice = &buf[len/2..];
@@ -83,22 +73,22 @@ impl VoodooBuffer {
     ///
     /// # Panics
     /// Will panic if it fails to cleanup in case of an error.
-    pub fn new(len: usize) -> Result<Self, BufferError> {
+    pub fn new(len: usize) -> Result<Self, VoodooBufferError> {
         if len == 0 {
-            return Err(BufferError {
+            return Err(VoodooBufferError::InvalidLen {
                 msg: "len must be greater than 0".to_string(),
             });
         }
 
         if !len.is_power_of_two() {
-            return Err(BufferError {
+            return Err(VoodooBufferError::InvalidLen {
                 msg: "len must be power of two".to_string(),
             });
         }
 
         let min_len = Self::min_len();
         if len % min_len != 0 {
-            return Err(BufferError {
+            return Err(VoodooBufferError::InvalidLen {
                 msg: format!("len must be page aligned, {}", min_len),
             });
         }
@@ -283,7 +273,7 @@ mod tests {
     fn requires_power_of_two() {
         VoodooBuffer::new(INVALID_BUF_LEN_POW2)
             .map_err(|e| {
-                println!("{}", e.msg);
+                println!("{}", e);
                 e
             })
             .expect_err("should not allocate buffer");
@@ -293,7 +283,7 @@ mod tests {
     fn requires_aligned_len() {
         VoodooBuffer::new(INVALID_BUF_LEN_ALIGN)
             .map_err(|e| {
-                println!("{}", e.msg);
+                println!("{}", e);
                 e
             })
             .expect_err("should not allocate buffer");

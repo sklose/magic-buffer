@@ -1,4 +1,4 @@
-use crate::BufferError;
+use crate::VoodooBufferError;
 
 use std::cmp::max;
 use std::{mem::MaybeUninit, ptr};
@@ -56,7 +56,7 @@ pub(super) unsafe fn voodoo_buf_min_len() -> usize {
     max(sys_info.dwPageSize, sys_info.dwAllocationGranularity) as usize
 }
 
-pub(super) unsafe fn voodoo_buf_alloc(len: usize) -> Result<*mut u8, BufferError> {
+pub(super) unsafe fn voodoo_buf_alloc(len: usize) -> Result<*mut u8, VoodooBufferError> {
     let placeholder1 = VirtualAlloc2(
         0,
         ptr::null(),
@@ -68,15 +68,11 @@ pub(super) unsafe fn voodoo_buf_alloc(len: usize) -> Result<*mut u8, BufferError
     );
 
     if placeholder1.is_null() {
-        return Err(BufferError {
-            msg: last_error_message(),
-        });
+        return Err(VoodooBufferError::OOM);
     }
 
     if VirtualFree(placeholder1, len, MEM_RELEASE | MEM_PRESERVE_PLACEHOLDER) == FALSE {
-        return Err(BufferError {
-            msg: last_error_message(),
-        });
+        return Err(VoodooBufferError::OOM);
     }
 
     let handle = CreateFileMappingA(
@@ -90,9 +86,7 @@ pub(super) unsafe fn voodoo_buf_alloc(len: usize) -> Result<*mut u8, BufferError
 
     if handle == 0 {
         VirtualFree(placeholder1, 0, MEM_RELEASE);
-        return Err(BufferError {
-            msg: last_error_message(),
-        });
+        return Err(VoodooBufferError::OOM);
     }
 
     let view1 = MapViewOfFile3(
@@ -109,9 +103,7 @@ pub(super) unsafe fn voodoo_buf_alloc(len: usize) -> Result<*mut u8, BufferError
 
     if view1 == 0 {
         VirtualFree(placeholder1, 0, MEM_RELEASE);
-        return Err(BufferError {
-            msg: last_error_message(),
-        });
+        return Err(VoodooBufferError::OOM);
     }
 
     let placeholder2 = placeholder1.add(len);

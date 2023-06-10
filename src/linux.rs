@@ -1,4 +1,4 @@
-use crate::BufferError;
+use crate::VoodooBufferError;
 
 use libc::{
     c_char, c_int, c_long, c_uint, c_void, close, ftruncate, mkstemp, mmap, munmap, off_t, size_t,
@@ -39,7 +39,7 @@ pub(super) unsafe fn voodoo_buf_min_len() -> usize {
     sysconf(_SC_PAGESIZE) as _
 }
 
-pub(super) unsafe fn voodoo_buf_alloc(len: usize) -> Result<*mut u8, BufferError> {
+pub(super) unsafe fn voodoo_buf_alloc(len: usize) -> Result<*mut u8, VoodooBufferError> {
     let mut fname = *b"/tmp/slice_deque_fileXXXXXX\0";
     let mut fd: c_long = memfd_create(fname.as_mut_ptr() as *mut c_char, 0);
     if fd == -1 && errno() == ENOSYS {
@@ -51,16 +51,12 @@ pub(super) unsafe fn voodoo_buf_alloc(len: usize) -> Result<*mut u8, BufferError
         }
     }
     if fd == -1 {
-        return Err(BufferError {
-            msg: "out of memory".to_string(),
-        });
+        return Err(VoodooBufferError::OOM);
     }
     let fd = fd as c_int;
     if ftruncate(fd, len as off_t) == -1 {
         assert_ne!(close(fd), -1);
-        return Err(BufferError {
-            msg: "out of memory".to_string(),
-        });
+        return Err(VoodooBufferError::OOM);
     };
 
     // mmap memory
@@ -74,9 +70,7 @@ pub(super) unsafe fn voodoo_buf_alloc(len: usize) -> Result<*mut u8, BufferError
     );
     if ptr == MAP_FAILED {
         assert_ne!(close(fd), -1);
-        return Err(BufferError {
-            msg: "out of memory".to_string(),
-        });
+        return Err(VoodooBufferError::OOM);
     }
 
     let ptr2 = mmap(
@@ -90,9 +84,7 @@ pub(super) unsafe fn voodoo_buf_alloc(len: usize) -> Result<*mut u8, BufferError
     if ptr2 == MAP_FAILED {
         assert_ne!(munmap(ptr, (len * 2) as size_t), -1);
         assert_ne!(close(fd), -1);
-        return Err(BufferError {
-            msg: "out of memory".to_string(),
-        });
+        return Err(VoodooBufferError::OOM);
     }
 
     assert_ne!(close(fd), -1);
