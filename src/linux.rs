@@ -4,9 +4,9 @@
 use crate::VoodooBufferError;
 
 use libc::{
-    c_char, c_int, c_long, c_uint, c_void, close, ftruncate, mkstemp, mmap, munmap, off_t, size_t,
-    syscall, sysconf, unlink, SYS_memfd_create, ENOSYS, MAP_FAILED, MAP_FIXED, MAP_SHARED,
-    PROT_READ, PROT_WRITE, _SC_PAGESIZE,
+    c_char, c_int, c_long, c_uint, close, ftruncate, mkstemp, mmap, munmap, off_t, size_t, syscall,
+    sysconf, unlink, SYS_memfd_create, ENOSYS, MAP_FAILED, MAP_FIXED, MAP_SHARED, PROT_READ,
+    PROT_WRITE, _SC_PAGESIZE,
 };
 use std::ptr;
 
@@ -43,7 +43,7 @@ pub(super) unsafe fn voodoo_buf_min_len() -> usize {
 }
 
 pub(super) unsafe fn voodoo_buf_alloc(len: usize) -> Result<*mut u8, VoodooBufferError> {
-    let mut file_name = *b"voodoo_buffer\0";
+    let file_name = *b"voodoo_buffer\0";
     let mut fd = memfd_create(file_name.as_ptr() as _, 0);
 
     if fd == -1 && errno() == ENOSYS {
