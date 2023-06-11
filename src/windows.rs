@@ -6,14 +6,13 @@ use crate::VoodooBufferError;
 use std::cmp::max;
 use std::{mem::MaybeUninit, ptr};
 
-use windows_sys::core::PWSTR;
 use windows_sys::Win32::{
-    Foundation::{CloseHandle, GetLastError, FALSE, INVALID_HANDLE_VALUE},
+    Foundation::{CloseHandle, FALSE, INVALID_HANDLE_VALUE},
     System::{
         Memory::{
-            CreateFileMappingA, LocalFree, MapViewOfFile3, UnmapViewOfFile, VirtualAlloc2,
-            VirtualFree, MEM_PRESERVE_PLACEHOLDER, MEM_RELEASE, MEM_REPLACE_PLACEHOLDER,
-            MEM_RESERVE, MEM_RESERVE_PLACEHOLDER, PAGE_NOACCESS, PAGE_READWRITE,
+            CreateFileMappingA, MapViewOfFile3, UnmapViewOfFile, VirtualAlloc2, VirtualFree,
+            MEM_PRESERVE_PLACEHOLDER, MEM_RELEASE, MEM_REPLACE_PLACEHOLDER, MEM_RESERVE,
+            MEM_RESERVE_PLACEHOLDER, PAGE_NOACCESS, PAGE_READWRITE,
         },
         SystemInformation::{self, SYSTEM_INFO},
     },
