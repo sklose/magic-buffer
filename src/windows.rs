@@ -1,3 +1,6 @@
+// This implementation is based on
+// https://learn.microsoft.com/en-us/windows/win32/api/memoryapi/nf-memoryapi-virtualalloc2
+
 use crate::VoodooBufferError;
 
 use std::cmp::max;
@@ -7,10 +10,6 @@ use windows_sys::core::PWSTR;
 use windows_sys::Win32::{
     Foundation::{CloseHandle, GetLastError, FALSE, INVALID_HANDLE_VALUE},
     System::{
-        Diagnostics::Debug::{
-            FormatMessageW, FORMAT_MESSAGE_ALLOCATE_BUFFER, FORMAT_MESSAGE_FROM_SYSTEM,
-            FORMAT_MESSAGE_IGNORE_INSERTS,
-        },
         Memory::{
             CreateFileMappingA, LocalFree, MapViewOfFile3, UnmapViewOfFile, VirtualAlloc2,
             VirtualFree, MEM_PRESERVE_PLACEHOLDER, MEM_RELEASE, MEM_REPLACE_PLACEHOLDER,
@@ -19,34 +18,6 @@ use windows_sys::Win32::{
         SystemInformation::{self, SYSTEM_INFO},
     },
 };
-
-fn last_error_message() -> String {
-    unsafe {
-        let code = GetLastError();
-        let mut lp_buffer: PWSTR = ptr::null_mut();
-        let cb_buffer = FormatMessageW(
-            FORMAT_MESSAGE_ALLOCATE_BUFFER
-                | FORMAT_MESSAGE_FROM_SYSTEM
-                | FORMAT_MESSAGE_IGNORE_INSERTS,
-            ptr::null(),
-            code,
-            0,
-            (&mut lp_buffer as *mut _) as _,
-            0,
-            ptr::null(),
-        );
-
-        if cb_buffer == 0 {
-            return code.to_string();
-        }
-
-        let buffer = std::slice::from_raw_parts(lp_buffer, cb_buffer as usize - 1);
-        let str = String::from_utf16_lossy(buffer);
-        LocalFree(lp_buffer as _);
-
-        str
-    }
-}
 
 pub(super) unsafe fn voodoo_buf_min_len() -> usize {
     let mut sys_info = MaybeUninit::<SYSTEM_INFO>::zeroed();
@@ -119,10 +90,7 @@ pub(super) unsafe fn voodoo_buf_alloc(len: usize) -> Result<*mut u8, VoodooBuffe
         0,
     );
 
-    if view2 == 0 {
-        panic!("failed")
-    }
-
+    assert_ne!(0, view2);
     CloseHandle(handle);
 
     Ok(view1 as *mut _)
