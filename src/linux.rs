@@ -1,9 +1,12 @@
+// This implementation is based on
+// https://github.com/gnzlbg/slice_deque/blob/master/src/mirrored/linux.rs
+
 use crate::VoodooBufferError;
 
 use libc::{
-    c_char, c_int, c_long, c_uint, c_void, close, ftruncate, mkstemp, mmap, munmap, off_t, size_t,
-    syscall, sysconf, unlink, SYS_memfd_create, ENOSYS, MAP_FAILED, MAP_FIXED, MAP_SHARED,
-    PROT_READ, PROT_WRITE, _SC_PAGESIZE,
+    c_char, c_int, c_long, c_uint, close, ftruncate, mkstemp, mmap, munmap, off_t, size_t, syscall,
+    sysconf, unlink, SYS_memfd_create, ENOSYS, MAP_FAILED, MAP_FIXED, MAP_SHARED, PROT_READ,
+    PROT_WRITE, _SC_PAGESIZE,
 };
 use std::ptr;
 
@@ -40,22 +43,25 @@ pub(super) unsafe fn voodoo_buf_min_len() -> usize {
 }
 
 pub(super) unsafe fn voodoo_buf_alloc(len: usize) -> Result<*mut u8, VoodooBufferError> {
-    let mut fname = *b"/tmp/slice_deque_fileXXXXXX\0";
-    let mut fd: c_long = memfd_create(fname.as_mut_ptr() as *mut c_char, 0);
+    let file_name = *b"voodoo_buffer\0";
+    let mut fd = memfd_create(file_name.as_ptr() as _, 0);
+
     if fd == -1 && errno() == ENOSYS {
         // memfd_create is not implemented, use mkstemp instead:
-        fd = c_long::from(mkstemp(fname.as_mut_ptr() as *mut c_char));
+        fd = c_long::from(mkstemp(file_name.as_ptr() as _));
         // and unlink the file
         if fd != -1 {
-            unlink(fname.as_mut_ptr() as *mut c_char);
+            assert_eq!(0, unlink(file_name.as_ptr() as _));
         }
     }
+
     if fd == -1 {
         return Err(VoodooBufferError::OOM);
     }
+
     let fd = fd as c_int;
     if ftruncate(fd, len as off_t) == -1 {
-        assert_ne!(close(fd), -1);
+        assert_eq!(0, close(fd));
         return Err(VoodooBufferError::OOM);
     };
 
@@ -68,29 +74,31 @@ pub(super) unsafe fn voodoo_buf_alloc(len: usize) -> Result<*mut u8, VoodooBuffe
         fd,
         0,
     );
+
     if ptr == MAP_FAILED {
-        assert_ne!(close(fd), -1);
+        assert_eq!(0, close(fd));
         return Err(VoodooBufferError::OOM);
     }
 
     let ptr2 = mmap(
-        (ptr as *mut u8).add(len) as *mut c_void,
+        (ptr as *mut u8).add(len) as _,
         len,
         PROT_READ | PROT_WRITE,
         MAP_SHARED | MAP_FIXED,
         fd,
         0,
     );
+
     if ptr2 == MAP_FAILED {
-        assert_ne!(munmap(ptr, (len * 2) as size_t), -1);
-        assert_ne!(close(fd), -1);
+        assert_eq!(0, munmap(ptr, (len * 2) as size_t));
+        assert_eq!(0, close(fd));
         return Err(VoodooBufferError::OOM);
     }
 
-    assert_ne!(close(fd), -1);
+    assert_eq!(0, close(fd));
     Ok(ptr as *mut u8)
 }
 
 pub(super) unsafe fn voodoo_buf_free(addr: *mut u8, len: usize) {
-    assert_ne!(munmap(addr as _, len as size_t), -1);
+    assert_eq!(0, munmap(addr as _, (len * 2) as size_t));
 }
