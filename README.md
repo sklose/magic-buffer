@@ -1,12 +1,12 @@
-[![CI](https://github.com/sklose/voodoo-buffers/actions/workflows/ci.yml/badge.svg)](https://github.com/sklose/voodoo-buffers/actions/workflows/ci.yml)
-[![crates.io](https://img.shields.io/crates/v/voodoo-buffers.svg)](https://crates.io/crates/voodoo-buffers)
+[![CI](https://github.com/sklose/magic-buffer/actions/workflows/ci.yml/badge.svg)](https://github.com/sklose/magic-buffer/actions/workflows/ci.yml)
+[![crates.io](https://img.shields.io/crates/v/magic-buffer.svg)](https://crates.io/crates/magic-buffer)
 
-# Voodoo Buffers
+# Magic Buffer
 
-A Virtual Ring Buffer (or Magic Ring Buffer) implementation for Rust. Voodoo Buffers provide a simplified
+A Magic Ring Buffer (or Virtual Ring Buffer) implementation for Rust. `magic-buffer` provides a simplified
 way to deal with buffers that wrap around by delegating that logic to hardware.
 
-![diagram](media/voodoo-buffers.png)
+![diagram](media/magic-buffer.png)
 
 The same underlying buffer is mapped twice into memory at adjacent addresses. This allows to wrap around the
 buffer while still reading forward in the virtual address space.
@@ -14,9 +14,14 @@ buffer while still reading forward in the virtual address space.
 This behavior is useful for a variety of applications:
 
 - network protocol parsers with a fixed size buffer
-- VecDec implementations that can provide a consecutive slice of memory (
-  e.g. [SliceDeq](https://github.com/gnzlbg/slice_deque))
+- VecDec implementations that can provide a consecutive slice of memory
+  (e.g. [SliceDeq](https://github.com/gnzlbg/slice_deque))
 - IPC ring buffer implementations
+
+```toml
+[dependencies]
+magic-buffer = "0.1"
+```
 
 ## Examples
 
@@ -26,8 +31,8 @@ Buffer lens have to be page aligned and follow the allocation
 granularity of the operating system
 
 ```rust
-use voodoo_buffers::*;
-let buf = VoodooBuffer::new(1 << 16).unwrap();
+use magic_buffer::*;
+let buf = MagicBuffer::new(1 << 16).unwrap();
 ```
 
 | OS      | Architecture | Min Buffer Len |
@@ -42,8 +47,8 @@ let buf = VoodooBuffer::new(1 << 16).unwrap();
 ### Indexing into a Buffer
 
 ```rust
-use voodoo_buffers::*;
-let mut buf = VoodooBuffer::new(1 << 16).unwrap();
+use magic_buffer::*;
+let mut buf = MagicBuffer::new(1 << 16).unwrap();
 buf[0] = b'1';
 buf[1] = b'2';
 
@@ -55,8 +60,8 @@ assert_eq!(buf[1], buf[(1 << 16) + 1]);
 ### Slices
 
 ```rust
-use voodoo_buffers::*;
-let buf = VoodooBuffer::new(1 << 16).unwrap();
+use magic_buffer::*;
+let buf = MagicBuffer::new(1 << 16).unwrap();
 
 // the whole underlying buffer starting at pos 0
 let a = & buf[0..(1 << 16)];

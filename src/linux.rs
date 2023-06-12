@@ -1,7 +1,7 @@
 // This implementation is based on
 // https://github.com/gnzlbg/slice_deque/blob/master/src/mirrored/linux.rs
 
-use crate::VoodooBufferError;
+use crate::MagicBufferError;
 
 use libc::{
     c_char, c_int, c_long, c_uint, close, ftruncate, mkstemp, mmap, munmap, off_t, size_t, syscall,
@@ -38,12 +38,12 @@ fn errno() -> c_int {
     }
 }
 
-pub(super) unsafe fn voodoo_buf_min_len() -> usize {
+pub(super) unsafe fn magic_buf_min_len() -> usize {
     sysconf(_SC_PAGESIZE) as _
 }
 
-pub(super) unsafe fn voodoo_buf_alloc(len: usize) -> Result<*mut u8, VoodooBufferError> {
-    let file_name = *b"voodoo_buffer\0";
+pub(super) unsafe fn magic_buf_alloc(len: usize) -> Result<*mut u8, MagicBufferError> {
+    let file_name = *b"magic_buffer\0";
     let mut fd = memfd_create(file_name.as_ptr() as _, 0);
 
     if fd == -1 && errno() == ENOSYS {
@@ -56,13 +56,13 @@ pub(super) unsafe fn voodoo_buf_alloc(len: usize) -> Result<*mut u8, VoodooBuffe
     }
 
     if fd == -1 {
-        return Err(VoodooBufferError::OOM);
+        return Err(MagicBufferError::OOM);
     }
 
     let fd = fd as c_int;
     if ftruncate(fd, len as off_t) == -1 {
         assert_eq!(0, close(fd));
-        return Err(VoodooBufferError::OOM);
+        return Err(MagicBufferError::OOM);
     };
 
     // mmap memory
@@ -77,7 +77,7 @@ pub(super) unsafe fn voodoo_buf_alloc(len: usize) -> Result<*mut u8, VoodooBuffe
 
     if ptr == MAP_FAILED {
         assert_eq!(0, close(fd));
-        return Err(VoodooBufferError::OOM);
+        return Err(MagicBufferError::OOM);
     }
 
     let ptr2 = mmap(
@@ -92,13 +92,13 @@ pub(super) unsafe fn voodoo_buf_alloc(len: usize) -> Result<*mut u8, VoodooBuffe
     if ptr2 == MAP_FAILED {
         assert_eq!(0, munmap(ptr, (len * 2) as size_t));
         assert_eq!(0, close(fd));
-        return Err(VoodooBufferError::OOM);
+        return Err(MagicBufferError::OOM);
     }
 
     assert_eq!(0, close(fd));
     Ok(ptr as *mut u8)
 }
 
-pub(super) unsafe fn voodoo_buf_free(addr: *mut u8, len: usize) {
+pub(super) unsafe fn magic_buf_free(addr: *mut u8, len: usize) {
     assert_eq!(0, munmap(addr as _, (len * 2) as size_t));
 }

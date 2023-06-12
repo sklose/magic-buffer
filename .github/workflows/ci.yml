@@ -49,25 +49,3 @@ jobs:
         with:
           command: test
           args: --locked --all-features --all-targets
-
-#  coverage:
-#    runs-on: ubuntu-latest
-#    name: ubuntu-latest / stable / coverage
-#    steps:
-#      - uses: actions/checkout@v3
-#      - uses: actions-rs/toolchain@v1
-#        with:
-#          profile: minimal
-#          override: true
-#          components: llvm-tools-preview
-#      - name: cargo install cargo-llvm-cov
-#        uses: taiki-e/install-action@cargo-llvm-cov
-#      - name: cargo llvm-cov
-#        uses: actions-rs/cargo@v1
-#        with:
-#          command: llvm-cov
-#          args: --locked --all-features --lcov --output-path lcov.info
-#      - name: codecov.io
-#        uses: codecov/codecov-action@v3
-#        with:
-#          fail_ci_if_error: true

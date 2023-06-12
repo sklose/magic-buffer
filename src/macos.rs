@@ -1,7 +1,7 @@
 // This implementation is based on
 // https://github.com/gnzlbg/slice_deque/blob/master/src/mirrored/macos.rs
 
-use crate::VoodooBufferError;
+use crate::MagicBufferError;
 
 use mach2::{
     boolean::boolean_t,
@@ -19,18 +19,18 @@ use mach2::{
 
 use std::mem::MaybeUninit;
 
-pub(super) unsafe fn voodoo_buf_min_len() -> usize {
+pub(super) unsafe fn magic_buf_min_len() -> usize {
     vm_page_size
 }
 
-pub(super) unsafe fn voodoo_buf_alloc(len: usize) -> Result<*mut u8, VoodooBufferError> {
+pub(super) unsafe fn magic_buf_alloc(len: usize) -> Result<*mut u8, MagicBufferError> {
     let task = mach_task_self();
 
     let mut addr: mach_vm_address_t = 0;
     let result = mach_vm_allocate(task, &mut addr as _, (len * 2) as u64, VM_FLAGS_ANYWHERE);
 
     if result != KERN_SUCCESS {
-        return Err(VoodooBufferError::OOM);
+        return Err(MagicBufferError::OOM);
     }
 
     let result = mach_vm_allocate(
@@ -41,7 +41,7 @@ pub(super) unsafe fn voodoo_buf_alloc(len: usize) -> Result<*mut u8, VoodooBuffe
     );
 
     if result != KERN_SUCCESS {
-        return Err(VoodooBufferError::OOM);
+        return Err(MagicBufferError::OOM);
     }
 
     let mut memory_object_size = len as memory_object_size_t;
@@ -58,7 +58,7 @@ pub(super) unsafe fn voodoo_buf_alloc(len: usize) -> Result<*mut u8, VoodooBuffe
     if result != KERN_SUCCESS {
         let result = mach_vm_deallocate(task, addr, (len * 2) as u64);
         assert_eq!(result, KERN_SUCCESS);
-        return Err(VoodooBufferError::OOM);
+        return Err(MagicBufferError::OOM);
     }
 
     let mut to = (addr as *mut u8).add(len) as mach_vm_address_t;
@@ -81,13 +81,13 @@ pub(super) unsafe fn voodoo_buf_alloc(len: usize) -> Result<*mut u8, VoodooBuffe
     if result != KERN_SUCCESS {
         let result = mach_vm_deallocate(task, addr, (len * 2) as u64);
         assert_eq!(result, KERN_SUCCESS);
-        return Err(VoodooBufferError::OOM);
+        return Err(MagicBufferError::OOM);
     }
 
     Ok(addr as _)
 }
 
-pub(super) unsafe fn voodoo_buf_free(addr: *mut u8, len: usize) {
+pub(super) unsafe fn magic_buf_free(addr: *mut u8, len: usize) {
     let result = mach_vm_deallocate(mach_task_self(), addr as _, (len * 2) as u64);
     assert_eq!(result, KERN_SUCCESS, "de-allocation failed");
 }

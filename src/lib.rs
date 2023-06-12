@@ -27,7 +27,7 @@ mod macos;
 use macos::*;
 
 #[derive(Debug, Error)]
-pub enum VoodooBufferError {
+pub enum MagicBufferError {
     #[error("out of memory")]
     OOM,
     #[error("invalid buffer len, {msg}")]
@@ -35,13 +35,13 @@ pub enum VoodooBufferError {
 }
 
 #[derive(Debug)]
-pub struct VoodooBuffer {
+pub struct MagicBuffer {
     addr: *mut u8,
     len: usize,
     mask: usize,
 }
 
-/// [`VoodooBuffer`] provides a ring buffer implementation that
+/// [`MagicBuffer`] provides a ring buffer implementation that
 /// can deref into a contiguous slice from any offset wrapping
 /// around the buffer.
 ///
@@ -52,18 +52,18 @@ pub struct VoodooBuffer {
 ///
 /// # Examples
 /// ```
-/// # use voodoo_buffers::*;
-/// # fn main() -> Result<(), VoodooBufferError> {
-/// let len = VoodooBuffer::min_len();
-/// let buf = VoodooBuffer::new(len)?;
+/// # use magic_buffer::*;
+/// # fn main() -> Result<(), MagicBufferError> {
+/// let len = MagicBuffer::min_len();
+/// let buf = MagicBuffer::new(len)?;
 /// let slice = &buf[len/2..];
 /// assert_eq!(len, slice.len());
 /// # Ok(())
 /// # }
 /// ```
 #[allow(clippy::len_without_is_empty)]
-impl VoodooBuffer {
-    /// Allocates a new [`VoodooBuffer`] of the specified `len`.
+impl MagicBuffer {
+    /// Allocates a new [`MagicBuffer`] of the specified `len`.
     ///
     /// `len` must be a power of two, and also must be a multiple
     /// of the operating system's allocation granularity. This is
@@ -75,28 +75,28 @@ impl VoodooBuffer {
     ///
     /// # Panics
     /// Will panic if it fails to cleanup in case of an error.
-    pub fn new(len: usize) -> Result<Self, VoodooBufferError> {
+    pub fn new(len: usize) -> Result<Self, MagicBufferError> {
         if len == 0 {
-            return Err(VoodooBufferError::InvalidLen {
+            return Err(MagicBufferError::InvalidLen {
                 msg: "len must be greater than 0".to_string(),
             });
         }
 
         if !len.is_power_of_two() {
-            return Err(VoodooBufferError::InvalidLen {
+            return Err(MagicBufferError::InvalidLen {
                 msg: "len must be power of two".to_string(),
             });
         }
 
         let min_len = Self::min_len();
         if len % min_len != 0 {
-            return Err(VoodooBufferError::InvalidLen {
+            return Err(MagicBufferError::InvalidLen {
                 msg: format!("len must be page aligned, {}", min_len),
             });
         }
 
         Ok(Self {
-            addr: unsafe { voodoo_buf_alloc(len) }?,
+            addr: unsafe { magic_buf_alloc(len) }?,
             mask: len - 1,
             len,
         })
@@ -107,10 +107,10 @@ impl VoodooBuffer {
     /// This is usually the page size - most commonly 4KiB. On Windows
     /// the allocation granularity is 64KiB (see [here](https://devblogs.microsoft.com/oldnewthing/20031008-00/?p=42223)).
     pub fn min_len() -> usize {
-        unsafe { voodoo_buf_min_len() }
+        unsafe { magic_buf_min_len() }
     }
 
-    /// Returns the length of this [`VoodooBuffer`].
+    /// Returns the length of this [`MagicBuffer`].
     pub fn len(&self) -> usize {
         self.len
     }
@@ -131,13 +131,13 @@ impl VoodooBuffer {
     }
 }
 
-impl Drop for VoodooBuffer {
+impl Drop for MagicBuffer {
     fn drop(&mut self) {
-        unsafe { voodoo_buf_free(self.addr, self.len) }
+        unsafe { magic_buf_free(self.addr, self.len) }
     }
 }
 
-impl Deref for VoodooBuffer {
+impl Deref for MagicBuffer {
     type Target = [u8];
 
     fn deref(&self) -> &Self::Target {
@@ -145,13 +145,13 @@ impl Deref for VoodooBuffer {
     }
 }
 
-impl DerefMut for VoodooBuffer {
+impl DerefMut for MagicBuffer {
     fn deref_mut(&mut self) -> &mut Self::Target {
         unsafe { self.as_slice_mut(0, self.len) }
     }
 }
 
-impl Index<usize> for VoodooBuffer {
+impl Index<usize> for MagicBuffer {
     type Output = u8;
 
     fn index(&self, index: usize) -> &Self::Output {
@@ -159,13 +159,13 @@ impl Index<usize> for VoodooBuffer {
     }
 }
 
-impl IndexMut<usize> for VoodooBuffer {
+impl IndexMut<usize> for MagicBuffer {
     fn index_mut(&mut self, index: usize) -> &mut Self::Output {
         unsafe { &mut *self.addr.add(self.fast_mod(index)) }
     }
 }
 
-impl Index<Range<usize>> for VoodooBuffer {
+impl Index<Range<usize>> for MagicBuffer {
     type Output = [u8];
 
     fn index(&self, index: Range<usize>) -> &Self::Output {
@@ -182,7 +182,7 @@ impl Index<Range<usize>> for VoodooBuffer {
     }
 }
 
-impl IndexMut<Range<usize>> for VoodooBuffer {
+impl IndexMut<Range<usize>> for MagicBuffer {
     fn index_mut(&mut self, index: Range<usize>) -> &mut Self::Output {
         if index.start > index.end {
             return &mut [];
@@ -197,7 +197,7 @@ impl IndexMut<Range<usize>> for VoodooBuffer {
     }
 }
 
-impl Index<RangeTo<usize>> for VoodooBuffer {
+impl Index<RangeTo<usize>> for MagicBuffer {
     type Output = [u8];
 
     fn index(&self, index: RangeTo<usize>) -> &Self::Output {
@@ -206,14 +206,14 @@ impl Index<RangeTo<usize>> for VoodooBuffer {
     }
 }
 
-impl IndexMut<RangeTo<usize>> for VoodooBuffer {
+impl IndexMut<RangeTo<usize>> for MagicBuffer {
     fn index_mut(&mut self, index: RangeTo<usize>) -> &mut Self::Output {
         let start = index.end - self.len;
         unsafe { self.as_slice_mut(self.fast_mod(start), self.len) }
     }
 }
 
-impl Index<RangeFrom<usize>> for VoodooBuffer {
+impl Index<RangeFrom<usize>> for MagicBuffer {
     type Output = [u8];
 
     fn index(&self, index: RangeFrom<usize>) -> &Self::Output {
@@ -221,13 +221,13 @@ impl Index<RangeFrom<usize>> for VoodooBuffer {
     }
 }
 
-impl IndexMut<RangeFrom<usize>> for VoodooBuffer {
+impl IndexMut<RangeFrom<usize>> for MagicBuffer {
     fn index_mut(&mut self, index: RangeFrom<usize>) -> &mut Self::Output {
         unsafe { self.as_slice_mut(self.fast_mod(index.start), self.len) }
     }
 }
 
-impl Index<RangeToInclusive<usize>> for VoodooBuffer {
+impl Index<RangeToInclusive<usize>> for MagicBuffer {
     type Output = [u8];
 
     fn index(&self, index: RangeToInclusive<usize>) -> &Self::Output {
@@ -236,14 +236,14 @@ impl Index<RangeToInclusive<usize>> for VoodooBuffer {
     }
 }
 
-impl IndexMut<RangeToInclusive<usize>> for VoodooBuffer {
+impl IndexMut<RangeToInclusive<usize>> for MagicBuffer {
     fn index_mut(&mut self, index: RangeToInclusive<usize>) -> &mut Self::Output {
         let start = index.end - self.len + 1;
         unsafe { self.as_slice_mut(self.fast_mod(start), self.len) }
     }
 }
 
-impl Index<RangeFull> for VoodooBuffer {
+impl Index<RangeFull> for MagicBuffer {
     type Output = [u8];
 
     fn index(&self, _: RangeFull) -> &Self::Output {
@@ -251,7 +251,7 @@ impl Index<RangeFull> for VoodooBuffer {
     }
 }
 
-impl IndexMut<RangeFull> for VoodooBuffer {
+impl IndexMut<RangeFull> for MagicBuffer {
     fn index_mut(&mut self, _: RangeFull) -> &mut Self::Output {
         unsafe { self.as_slice_mut(0, self.len) }
     }
@@ -267,13 +267,13 @@ mod tests {
 
     #[test]
     fn allocates_buffer() {
-        let buf = VoodooBuffer::new(VALID_BUF_LEN).expect("should allocate buffer");
+        let buf = MagicBuffer::new(VALID_BUF_LEN).expect("should allocate buffer");
         drop(buf);
     }
 
     #[test]
     fn requires_power_of_two() {
-        VoodooBuffer::new(INVALID_BUF_LEN_POW2)
+        MagicBuffer::new(INVALID_BUF_LEN_POW2)
             .map_err(|e| {
                 println!("{}", e);
                 e
@@ -283,7 +283,7 @@ mod tests {
 
     #[test]
     fn requires_aligned_len() {
-        VoodooBuffer::new(INVALID_BUF_LEN_ALIGN)
+        MagicBuffer::new(INVALID_BUF_LEN_ALIGN)
             .map_err(|e| {
                 println!("{}", e);
                 e
@@ -293,91 +293,91 @@ mod tests {
 
     #[test]
     fn writes_are_visible_wrap_around() {
-        let mut buf = VoodooBuffer::new(VALID_BUF_LEN).expect("should allocate buffer");
+        let mut buf = MagicBuffer::new(VALID_BUF_LEN).expect("should allocate buffer");
         buf[0] = b'a';
         assert_eq!(buf[0], buf[VALID_BUF_LEN]);
     }
 
     #[test]
     fn deref_as_slice() {
-        let buf = VoodooBuffer::new(VALID_BUF_LEN).expect("should allocate buffer");
+        let buf = MagicBuffer::new(VALID_BUF_LEN).expect("should allocate buffer");
         let slice: &[u8] = &buf;
         assert_eq!(VALID_BUF_LEN, slice.len());
     }
 
     #[test]
     fn deref_mut_as_slice() {
-        let mut buf = VoodooBuffer::new(VALID_BUF_LEN).expect("should allocate buffer");
+        let mut buf = MagicBuffer::new(VALID_BUF_LEN).expect("should allocate buffer");
         let slice: &mut [u8] = &mut buf;
         assert_eq!(VALID_BUF_LEN, slice.len());
     }
 
     #[test]
     fn closed_range() {
-        let buf = VoodooBuffer::new(VALID_BUF_LEN).expect("should allocate buffer");
+        let buf = MagicBuffer::new(VALID_BUF_LEN).expect("should allocate buffer");
         let slice = &buf[0..VALID_BUF_LEN];
         assert_eq!(VALID_BUF_LEN, slice.len());
     }
 
     #[test]
     fn closed_range_mut() {
-        let mut buf = VoodooBuffer::new(VALID_BUF_LEN).expect("should allocate buffer");
+        let mut buf = MagicBuffer::new(VALID_BUF_LEN).expect("should allocate buffer");
         let slice = &mut buf[0..VALID_BUF_LEN];
         assert_eq!(VALID_BUF_LEN, slice.len());
     }
 
     #[test]
     fn range_to() {
-        let buf = VoodooBuffer::new(VALID_BUF_LEN).expect("should allocate buffer");
+        let buf = MagicBuffer::new(VALID_BUF_LEN).expect("should allocate buffer");
         let slice = &buf[..VALID_BUF_LEN + 1];
         assert_eq!(VALID_BUF_LEN, slice.len());
     }
 
     #[test]
     fn range_to_mut() {
-        let mut buf = VoodooBuffer::new(VALID_BUF_LEN).expect("should allocate buffer");
+        let mut buf = MagicBuffer::new(VALID_BUF_LEN).expect("should allocate buffer");
         let slice = &mut buf[..VALID_BUF_LEN + 1];
         assert_eq!(VALID_BUF_LEN, slice.len());
     }
 
     #[test]
     fn range_from() {
-        let buf = VoodooBuffer::new(VALID_BUF_LEN).expect("should allocate buffer");
+        let buf = MagicBuffer::new(VALID_BUF_LEN).expect("should allocate buffer");
         let slice = &buf[1..];
         assert_eq!(VALID_BUF_LEN, slice.len());
     }
 
     #[test]
     fn range_from_mut() {
-        let mut buf = VoodooBuffer::new(VALID_BUF_LEN).expect("should allocate buffer");
+        let mut buf = MagicBuffer::new(VALID_BUF_LEN).expect("should allocate buffer");
         let slice = &mut buf[1..];
         assert_eq!(VALID_BUF_LEN, slice.len());
     }
 
     #[test]
     fn range_to_inclusive() {
-        let buf = VoodooBuffer::new(VALID_BUF_LEN).expect("should allocate buffer");
+        let buf = MagicBuffer::new(VALID_BUF_LEN).expect("should allocate buffer");
         let slice = &buf[..=VALID_BUF_LEN];
         assert_eq!(VALID_BUF_LEN, slice.len());
     }
 
     #[test]
     fn range_to_inclusive_mut() {
-        let mut buf = VoodooBuffer::new(VALID_BUF_LEN).expect("should allocate buffer");
+        let mut buf = MagicBuffer::new(VALID_BUF_LEN).expect("should allocate buffer");
         let slice = &mut buf[..=VALID_BUF_LEN];
         assert_eq!(VALID_BUF_LEN, slice.len());
     }
 
     #[test]
     fn range_full() {
-        let buf = VoodooBuffer::new(VALID_BUF_LEN).expect("should allocate buffer");
+        let buf = MagicBuffer::new(VALID_BUF_LEN).expect("should allocate buffer");
         let slice = &buf[..];
         assert_eq!(VALID_BUF_LEN, slice.len());
     }
 
     #[test]
     fn range_full_mut() {
-        let mut buf = VoodooBuffer::new(VALID_BUF_LEN).expect("should allocate buffer");
+        let mut buf = MagicBuffer::new(VALID_BUF_LEN).expect("should allocate buffer");
         let slice = &mut buf[..];
         assert_eq!(VALID_BUF_LEN, slice.len());
     }

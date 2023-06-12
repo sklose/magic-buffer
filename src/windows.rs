@@ -1,7 +1,7 @@
 // This implementation is based on
 // https://learn.microsoft.com/en-us/windows/win32/api/memoryapi/nf-memoryapi-virtualalloc2
 
-use crate::VoodooBufferError;
+use crate::MagicBufferError;
 
 use std::cmp::max;
 use std::{mem::MaybeUninit, ptr};
@@ -18,7 +18,7 @@ use windows_sys::Win32::{
     },
 };
 
-pub(super) unsafe fn voodoo_buf_min_len() -> usize {
+pub(super) unsafe fn magic_buf_min_len() -> usize {
     let mut sys_info = MaybeUninit::<SYSTEM_INFO>::zeroed();
     SystemInformation::GetSystemInfo(sys_info.as_mut_ptr());
     let sys_info = sys_info.assume_init();
@@ -26,7 +26,7 @@ pub(super) unsafe fn voodoo_buf_min_len() -> usize {
     max(sys_info.dwPageSize, sys_info.dwAllocationGranularity) as usize
 }
 
-pub(super) unsafe fn voodoo_buf_alloc(len: usize) -> Result<*mut u8, VoodooBufferError> {
+pub(super) unsafe fn magic_buf_alloc(len: usize) -> Result<*mut u8, MagicBufferError> {
     let placeholder1 = VirtualAlloc2(
         0,
         ptr::null(),
@@ -38,11 +38,11 @@ pub(super) unsafe fn voodoo_buf_alloc(len: usize) -> Result<*mut u8, VoodooBuffe
     );
 
     if placeholder1.is_null() {
-        return Err(VoodooBufferError::OOM);
+        return Err(MagicBufferError::OOM);
     }
 
     if VirtualFree(placeholder1, len, MEM_RELEASE | MEM_PRESERVE_PLACEHOLDER) == FALSE {
-        return Err(VoodooBufferError::OOM);
+        return Err(MagicBufferError::OOM);
     }
 
     let handle = CreateFileMappingA(
@@ -56,7 +56,7 @@ pub(super) unsafe fn voodoo_buf_alloc(len: usize) -> Result<*mut u8, VoodooBuffe
 
     if handle == 0 {
         VirtualFree(placeholder1, 0, MEM_RELEASE);
-        return Err(VoodooBufferError::OOM);
+        return Err(MagicBufferError::OOM);
     }
 
     let view1 = MapViewOfFile3(
@@ -73,7 +73,7 @@ pub(super) unsafe fn voodoo_buf_alloc(len: usize) -> Result<*mut u8, VoodooBuffe
 
     if view1 == 0 {
         VirtualFree(placeholder1, 0, MEM_RELEASE);
-        return Err(VoodooBufferError::OOM);
+        return Err(MagicBufferError::OOM);
     }
 
     let placeholder2 = placeholder1.add(len);
@@ -95,7 +95,7 @@ pub(super) unsafe fn voodoo_buf_alloc(len: usize) -> Result<*mut u8, VoodooBuffe
     Ok(view1 as *mut _)
 }
 
-pub(super) unsafe fn voodoo_buf_free(addr: *mut u8, len: usize) {
+pub(super) unsafe fn magic_buf_free(addr: *mut u8, len: usize) {
     UnmapViewOfFile(addr.add(len) as _);
     UnmapViewOfFile(addr as _);
 }
