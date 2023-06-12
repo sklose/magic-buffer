@@ -5,7 +5,7 @@ keywords = [
     "networking",
     "allocation",
     "buffer",
-    "ring buffer"
+    "ring-buffer"
 ]
 version = "0.1.0"
 edition = "2021"
