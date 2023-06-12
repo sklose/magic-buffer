@@ -1,15 +1,22 @@
+// This implementation is based on
+// https://github.com/gnzlbg/slice_deque/blob/master/src/mirrored/macos.rs
+
 use crate::VoodooBufferError;
-use mach2::boolean::boolean_t;
-use mach2::kern_return::KERN_SUCCESS;
-use mach2::mach_types::mem_entry_name_port_t;
-use mach2::memory_object_types::memory_object_size_t;
-use mach2::traps::mach_task_self;
-use mach2::vm::{mach_make_memory_entry_64, mach_vm_allocate, mach_vm_deallocate, mach_vm_remap};
-use mach2::vm_inherit::VM_INHERIT_NONE;
-use mach2::vm_page_size::vm_page_size;
-use mach2::vm_prot::{vm_prot_t, VM_PROT_READ, VM_PROT_WRITE};
-use mach2::vm_statistics::{VM_FLAGS_ANYWHERE, VM_FLAGS_FIXED, VM_FLAGS_OVERWRITE};
-use mach2::vm_types::mach_vm_address_t;
+
+use mach2::{
+    boolean::boolean_t,
+    kern_return::KERN_SUCCESS,
+    mach_types::mem_entry_name_port_t,
+    memory_object_types::memory_object_size_t,
+    traps::mach_task_self,
+    vm::{mach_make_memory_entry_64, mach_vm_allocate, mach_vm_deallocate, mach_vm_remap},
+    vm_inherit::VM_INHERIT_NONE,
+    vm_page_size::vm_page_size,
+    vm_prot::{vm_prot_t, VM_PROT_READ, VM_PROT_WRITE},
+    vm_statistics::{VM_FLAGS_ANYWHERE, VM_FLAGS_FIXED, VM_FLAGS_OVERWRITE},
+    vm_types::mach_vm_address_t,
+};
+
 use std::mem::MaybeUninit;
 
 pub(super) unsafe fn voodoo_buf_min_len() -> usize {

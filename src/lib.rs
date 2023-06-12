@@ -1,3 +1,5 @@
+#![doc = include_str!("../README.md")]
+
 use std::{
     ops::{
         Deref, DerefMut, Index, IndexMut, Range, RangeFrom, RangeFull, RangeTo, RangeToInclusive,
