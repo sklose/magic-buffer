@@ -6,7 +6,7 @@
 A Magic Ring Buffer (or Virtual Ring Buffer) implementation for Rust. `magic-buffer` provides a simplified
 way to deal with buffers that wrap around by delegating that logic to hardware.
 
-![diagram](media/magic-buffer.png)
+![diagram](https://raw.githubusercontent.com/sklose/magic-buffer/main/media/magic-buffer.png)
 
 The same underlying buffer is mapped twice into memory at adjacent addresses. This allows to wrap around the
 buffer while still reading forward in the virtual address space.
