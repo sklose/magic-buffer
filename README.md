@@ -1,5 +1,6 @@
 [![CI](https://github.com/sklose/magic-buffer/actions/workflows/ci.yml/badge.svg)](https://github.com/sklose/magic-buffer/actions/workflows/ci.yml)
 [![crates.io](https://img.shields.io/crates/v/magic-buffer.svg)](https://crates.io/crates/magic-buffer)
+[![docs.rs](https://img.shields.io/docsrs/magic-buffer)](https://docs.rs/magic-buffer)
 
 # Magic Buffer
 
