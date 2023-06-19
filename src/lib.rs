@@ -165,6 +165,44 @@ impl IndexMut<usize> for MagicBuffer {
     }
 }
 
+impl Index<i32> for MagicBuffer {
+    type Output = u8;
+
+    fn index(&self, index: i32) -> &Self::Output {
+        &self[index as isize]
+    }
+}
+
+impl IndexMut<i32> for MagicBuffer {
+    fn index_mut(&mut self, index: i32) -> &mut Self::Output {
+        &mut self[index as isize]
+    }
+}
+
+impl Index<isize> for MagicBuffer {
+    type Output = u8;
+
+    fn index(&self, index: isize) -> &Self::Output {
+        let index = if index < 0 {
+            self.len - self.fast_mod((-index) as usize)
+        } else {
+            self.fast_mod(index as usize)
+        };
+        unsafe { &*self.addr.add(index) }
+    }
+}
+
+impl IndexMut<isize> for MagicBuffer {
+    fn index_mut(&mut self, index: isize) -> &mut Self::Output {
+        let index = if index < 0 {
+            self.len - self.fast_mod((-index) as usize)
+        } else {
+            self.fast_mod(index as usize)
+        };
+        unsafe { &mut *self.addr.add(index) }
+    }
+}
+
 impl Index<Range<usize>> for MagicBuffer {
     type Output = [u8];
 
@@ -380,5 +418,19 @@ mod tests {
         let mut buf = MagicBuffer::new(VALID_BUF_LEN).expect("should allocate buffer");
         let slice = &mut buf[..];
         assert_eq!(VALID_BUF_LEN, slice.len());
+    }
+
+    #[test]
+    fn index_wrap_around() {
+        let mut buf = MagicBuffer::new(VALID_BUF_LEN).expect("should allocate buffer");
+        buf[0] = b'1';
+        assert_eq!(b'1', buf[VALID_BUF_LEN]);
+    }
+
+    #[test]
+    fn index_negative() {
+        let mut buf = MagicBuffer::new(VALID_BUF_LEN).expect("should allocate buffer");
+        buf[-1] = b'2';
+        assert_eq!(b'2', buf[VALID_BUF_LEN - 1]);
     }
 }
