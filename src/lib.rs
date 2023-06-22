@@ -165,19 +165,33 @@ impl IndexMut<usize> for MagicBuffer {
     }
 }
 
-impl Index<i32> for MagicBuffer {
-    type Output = u8;
+macro_rules! index_impl {
+    ($from:ty, $to:ty) => {
+        impl Index<$from> for MagicBuffer {
+            type Output = u8;
 
-    fn index(&self, index: i32) -> &Self::Output {
-        &self[index as isize]
-    }
+            fn index(&self, index: $from) -> &Self::Output {
+                &self[index as $to]
+            }
+        }
+
+        impl IndexMut<$from> for MagicBuffer {
+            fn index_mut(&mut self, index: $from) -> &mut Self::Output {
+                &mut self[index as $to]
+            }
+        }
+    };
 }
 
-impl IndexMut<i32> for MagicBuffer {
-    fn index_mut(&mut self, index: i32) -> &mut Self::Output {
-        &mut self[index as isize]
-    }
-}
+index_impl!(i64, isize);
+index_impl!(i32, isize);
+index_impl!(i16, isize);
+index_impl!(i8, isize);
+
+index_impl!(u64, usize);
+index_impl!(u32, usize);
+index_impl!(u16, usize);
+index_impl!(u8, usize);
 
 impl Index<isize> for MagicBuffer {
     type Output = u8;

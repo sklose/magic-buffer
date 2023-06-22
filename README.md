@@ -65,9 +65,9 @@ use magic_buffer::*;
 let buf = MagicBuffer::new(1 << 16).unwrap();
 
 // the whole underlying buffer starting at pos 0
-let a = &buf[0..(1 << 16)];
+let a = &buf[..];
 
 // the whole underlying buffer starting at pos 1
 // then wrapping around with the first byte at the end
-let b = &buf[1..(1 << 16) + 1];
+let b = &buf[1..];
 ```
