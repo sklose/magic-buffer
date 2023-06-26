@@ -26,12 +26,20 @@ mod macos;
 #[cfg(any(target_os = "macos", target_os = "ios"))]
 use macos::*;
 
+/// The [`MagicBufferError`] error indicates an allocation failure that may be due
+/// to resource exhaustion or to something wrong with the given input arguments
+/// to [`MagicBuffer::new`].
 #[derive(Debug, Error)]
 pub enum MagicBufferError {
+    /// There is not enough memory available.
     #[error("out of memory")]
     OOM,
+    /// The specified buffer length is invalid. See [`MagicBuffer::new`] for more information.
     #[error("invalid buffer len, {msg}")]
-    InvalidLen { msg: String },
+    InvalidLen {
+        /// Details on why the `len` is invalid.
+        msg: String
+    },
 }
 
 #[derive(Debug)]
@@ -70,10 +78,15 @@ impl MagicBuffer {
     /// usually the page size - most commonly 4KiB. On Windows
     /// the allocation granularity is 64KiB (see [here](https://devblogs.microsoft.com/oldnewthing/20031008-00/?p=42223)).
     ///
-    /// # Errors
-    /// Will return an error if the allocation fails.
+    /// ## Errors
+    /// Will return a [`MagicBufferError`] if the allocation fails.
+    /// ```rust
+    /// # use magic_buffer::{MagicBuffer, MagicBufferError};
+    /// let err = MagicBuffer::new(0).unwrap_err();
+    /// assert!(matches!(err, MagicBufferError::InvalidLen{ .. }));
+    /// ```
     ///
-    /// # Panics
+    /// ## Panics
     /// Will panic if it fails to cleanup in case of an error.
     pub fn new(len: usize) -> Result<Self, MagicBufferError> {
         if len == 0 {
@@ -113,6 +126,55 @@ impl MagicBuffer {
     /// Returns the length of this [`MagicBuffer`].
     pub fn len(&self) -> usize {
         self.len
+    }
+
+    /// Returns an unsafe pointer to the [`MagicBuffer`]. The `offset` species the first
+    /// element the pointer points to. The pointer can be used to address up to `len` elements.
+    ///
+    /// The caller must ensure that the [`MagicBuffer`] outlives the pointer this function returns,
+    /// or else it will end up pointing to garbage.
+    ///
+    /// The caller must also ensure that the memory the pointer (non-transitively) points to is
+    /// never written to (except inside an UnsafeCell) using this pointer or any pointer derived
+    /// from it. If you need to mutate the contents of the slice, use [`as_mut_ptr`](MagicBuffer::as_mut_ptr).
+    ///
+    /// ## Examples
+    /// ```rust
+    /// # use magic_buffer::MagicBuffer;
+    /// let x = MagicBuffer::new(MagicBuffer::min_len()).unwrap();
+    /// let x_ptr = x.as_ptr(1);
+    ///
+    /// unsafe {
+    ///     for i in 0..x.len() {
+    ///         assert_eq!(*x_ptr.add(i), 0);
+    ///     }
+    /// }
+    /// ```
+    pub fn as_ptr(&self, offset: usize) -> *const u8 {
+        unsafe { self.addr.add(self.fast_mod(offset)).cast_const() }
+    }
+
+    /// Returns an unsafe mutable pointer to the [`MagicBuffer`]. The `offset` species the first
+    /// element the mutable pointer points to. The mutable pointer can be used to address up
+    /// to `len` elements.
+    ///
+    /// The caller must ensure that the [`MagicBuffer`] outlives the pointer this function returns,
+    /// or else it will end up pointing to garbage.
+    ///
+    /// ## Examples
+    /// ```rust
+    /// # use magic_buffer::MagicBuffer;
+    /// let mut x = MagicBuffer::new(MagicBuffer::min_len()).unwrap();
+    /// let x_ptr = x.as_mut_ptr(1);
+    ///
+    /// unsafe {
+    ///     for i in 0..x.len() {
+    ///         *x_ptr.add(i) = (i % 256) as u8;
+    ///     }
+    /// }
+    /// ```
+    pub fn as_mut_ptr(&mut self, offset: usize) -> *mut u8 {
+        unsafe { self.addr.add(self.fast_mod(offset)) }
     }
 
     #[inline(always)]
