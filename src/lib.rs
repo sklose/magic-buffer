@@ -38,7 +38,7 @@ pub enum MagicBufferError {
     #[error("invalid buffer len, {msg}")]
     InvalidLen {
         /// Details on why the `len` is invalid.
-        msg: String
+        msg: String,
     },
 }
 
