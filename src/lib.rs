@@ -49,6 +49,13 @@ pub struct MagicBuffer {
     mask: usize,
 }
 
+// SAFETY: Memory mappings are not tied to a thread, so they can be sent
+// across thread boundaries safely.
+unsafe impl Send for MagicBuffer {}
+
+// SAFETY: There is no interior mutability.
+unsafe impl Sync for MagicBuffer {}
+
 /// [`MagicBuffer`] provides a ring buffer implementation that
 /// can deref into a contiguous slice from any offset wrapping
 /// around the buffer.
