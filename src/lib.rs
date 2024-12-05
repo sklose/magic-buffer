@@ -516,4 +516,20 @@ mod tests {
         buf[-1] = b'2';
         assert_eq!(b'2', buf[VALID_BUF_LEN - 1]);
     }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn github_issue_6() {
+        let mut buf = MagicBuffer::new(4096).unwrap();
+
+        let a = buf[0..4096][0];
+        buf[1..4097][4095] = 1;
+
+        let b = buf[0..4096][0];
+        let c = buf[0..4096][0];
+
+        assert_eq!(0, a);
+        assert_eq!(1, b);
+        assert_eq!(1, c);
+    }
 }
