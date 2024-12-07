@@ -1,6 +1,7 @@
 #![doc = include_str!("../README.md")]
 
 use std::{
+    arch::asm,
     ops::{
         Deref, DerefMut, Index, IndexMut, Range, RangeFrom, RangeFull, RangeTo, RangeToInclusive,
     },
@@ -158,7 +159,10 @@ impl MagicBuffer {
     /// }
     /// ```
     pub fn as_ptr(&self, offset: usize) -> *const u8 {
-        unsafe { self.addr.add(self.fast_mod(offset)).cast_const() }
+        unsafe {
+            asm!("/* {ptr} */", ptr = in(reg) self.addr, options(nostack, preserves_flags));
+            self.addr.add(self.fast_mod(offset)).cast_const()
+        }
     }
 
     /// Returns an unsafe mutable pointer to the [`MagicBuffer`]. The `offset` species the first
@@ -181,16 +185,21 @@ impl MagicBuffer {
     /// }
     /// ```
     pub fn as_mut_ptr(&mut self, offset: usize) -> *mut u8 {
-        unsafe { self.addr.add(self.fast_mod(offset)) }
+        unsafe {
+            asm!("/* {ptr} */", ptr = in(reg) self.addr, options(nostack, preserves_flags));
+            self.addr.add(self.fast_mod(offset))
+        }
     }
 
     #[inline(always)]
     unsafe fn as_slice(&self, offset: usize, len: usize) -> &[u8] {
+        asm!("/* {ptr} */", ptr = in(reg) self.addr, options(nostack, preserves_flags));
         &*(slice_from_raw_parts(self.addr.add(offset), len))
     }
 
     #[inline(always)]
     unsafe fn as_slice_mut(&mut self, offset: usize, len: usize) -> &mut [u8] {
+        asm!("/* {ptr} */", ptr = in(reg) self.addr, options(nostack, preserves_flags));
         &mut *(slice_from_raw_parts_mut(self.addr.add(offset), len))
     }
 
@@ -224,13 +233,19 @@ impl Index<usize> for MagicBuffer {
     type Output = u8;
 
     fn index(&self, index: usize) -> &Self::Output {
-        unsafe { &*self.addr.add(self.fast_mod(index)) }
+        unsafe {
+            asm!("/* {ptr} */", ptr = in(reg) self.addr, options(nostack, preserves_flags));
+            &*self.addr.add(self.fast_mod(index))
+        }
     }
 }
 
 impl IndexMut<usize> for MagicBuffer {
     fn index_mut(&mut self, index: usize) -> &mut Self::Output {
-        unsafe { &mut *self.addr.add(self.fast_mod(index)) }
+        unsafe {
+            asm!("/* {ptr} */", ptr = in(reg) self.addr, options(nostack, preserves_flags));
+            &mut *self.addr.add(self.fast_mod(index))
+        }
     }
 }
 
@@ -271,7 +286,11 @@ impl Index<isize> for MagicBuffer {
         } else {
             self.fast_mod(index as usize)
         };
-        unsafe { &*self.addr.add(index) }
+
+        unsafe {
+            asm!("/* {ptr} */", ptr = in(reg) self.addr, options(nostack, preserves_flags));
+            &*self.addr.add(index)
+        }
     }
 }
 
@@ -282,7 +301,11 @@ impl IndexMut<isize> for MagicBuffer {
         } else {
             self.fast_mod(index as usize)
         };
-        unsafe { &mut *self.addr.add(index) }
+
+        unsafe {
+            asm!("/* {ptr} */", ptr = in(reg) self.addr, options(nostack, preserves_flags));
+            &mut *self.addr.add(index)
+        }
     }
 }
 
