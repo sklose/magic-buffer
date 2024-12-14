@@ -7,7 +7,7 @@ keywords = [
     "buffer",
     "ring-buffer"
 ]
-version = "0.1.1"
+version = "0.1.2"
 edition = "2021"
 license = "MIT"
 authors = ["Sebastian Klose <mail@sklose.com>"]
@@ -15,7 +15,7 @@ repository = "https://github.com/sklose/magic-buffer"
 readme = "README.md"
 
 [dependencies]
-thiserror = "1"
+thiserror = "2"
 
 [target.'cfg(windows)'.dependencies.windows-sys]
 version = "0.48"
@@ -32,3 +32,7 @@ libc = "0.2"
 
 [target.'cfg(any(target_os = "macos", target_os = "ios"))'.dependencies]
 mach2 = "0.4"
+
+[profile.test]
+opt-level = 3
+lto = "fat"
